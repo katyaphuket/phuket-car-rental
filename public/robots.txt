@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /link-generator
+
+Sitemap: https://phuketrentcar.com/sitemap.xml

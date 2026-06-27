@@ -1,26 +1,58 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fbfaf7;
+  --surface: #ffffff;
+  --surface-muted: #eef3ee;
+  --foreground: #16302c;
+  --foreground-muted: #5b6660;
+  --foreground-faint: #8a8f7e;
+  --border: #e4e0d6;
+  --accent: #0ea5c9;
+  --accent-hover: #0284c7;
+  --accent-foreground: #fbfaf7;
+  --accent-soft: #e0f2fe;
+  --accent-soft-foreground: #0c4a6e;
+
+  --surface-dark: #122620;
+  --surface-dark-card: #1b3a32;
+  --on-dark: #f5f3ec;
+  --on-dark-muted: #aebcb4;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-foreground-muted: var(--foreground-muted);
+  --color-foreground-faint: var(--foreground-faint);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-foreground: var(--accent-soft-foreground);
+  --color-surface-dark: var(--surface-dark);
+  --color-surface-dark-card: var(--surface-dark-card);
+  --color-on-dark: var(--on-dark);
+  --color-on-dark-muted: var(--on-dark-muted);
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-manrope);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer utilities {
+  .card-elevate {
+    box-shadow: 0 1px 3px rgba(22, 48, 44, 0.06), 0 1px 2px rgba(22, 48, 44, 0.04);
+    transition: transform 200ms ease, box-shadow 200ms ease;
+  }
+  .card-elevate:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 32px rgba(22, 48, 44, 0.14), 0 4px 8px rgba(22, 48, 44, 0.08);
+  }
 }
