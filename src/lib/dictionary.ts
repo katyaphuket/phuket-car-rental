@@ -209,7 +209,7 @@ export const dictionary: Record<Locale, Dictionary> = {
       availableFrom: (range: string) => `Доступно сейчас · ${range}`,
       perDay: "/день",
       popular: "Популярно",
-      request: "Оставить заявку",
+      request: "Выбрать эту машину",
       total: "за весь период",
       deposit: "Депозит",
       errorMessage: "Не удалось загрузить автомобили. Попробуйте ещё раз.",
