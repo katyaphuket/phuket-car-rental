@@ -276,7 +276,7 @@ export const dictionary: Record<Locale, Dictionary> = {
         deposit: "Депозит (возвращается)",
         depositNote: "Оплата при получении автомобиля. Предоплата не требуется.",
       },
-      nextStep: "Оставить заявку →",
+      nextStep: "Выбрать эту машину →",
       payNote: "Оплата при получении автомобиля. Предоплата не требуется.",
       form: {
         namePlaceholder: "Ваше имя",
