@@ -7,6 +7,7 @@ import { useLocale } from "@/lib/locale-context";
 import type { Car, Delivery } from "@/lib/cars";
 import type { Zone } from "@/lib/delivery-rules";
 import { getCarFeatures, getDisplayName, translateCarFeatures, translateTransmission } from "@/lib/car-features";
+import { trackBookingSubmit } from "@/lib/analytics";
 import { PhotoPlaceholder } from "./photo-placeholder";
 
 const WASH_FEE = 400;
@@ -184,6 +185,7 @@ export function CarModal({
         }),
       });
       if (!res.ok) throw new Error("request failed");
+      trackBookingSubmit();
       setStep("thanks");
     } catch {
       setStep("error");

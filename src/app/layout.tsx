@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Manrope, Montserrat } from "next/font/google";
 import { LocaleProvider } from "@/lib/locale-context";
+import { Analytics } from "@/components/analytics";
 import "./globals.css";
 
 const SITE_URL = "https://phuketrentcar.com";
@@ -57,6 +58,19 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "CarRental",
+  name: "Phuket Car Rental",
+  url: SITE_URL,
+  image: `${SITE_URL}/hero-bg.jpg`,
+  areaServed: {
+    "@type": "Place",
+    name: "Phuket, Thailand",
+  },
+  priceRange: "฿฿",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -72,8 +86,13 @@ export default function RootLayout({
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css"
         />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
       </head>
       <body className="min-h-full flex flex-col font-sans">
+        <Analytics />
         <LocaleProvider>{children}</LocaleProvider>
       </body>
     </html>
