@@ -32,20 +32,22 @@ export function SiteHeader({ forceSolid = false }: SiteHeaderProps) {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Logo dark={scrolled} />
 
-        <nav
-          className={`hidden items-center gap-7 text-sm transition-colors duration-300 md:flex ${
-            scrolled ? "text-foreground-muted" : "text-white/90"
-          }`}
-        >
-          <a href="/#fleet" className={scrolled ? "hover:text-foreground" : "hover:text-white"}>
-            {t.nav.fleet}
-          </a>
-          <a href="/terms" className={scrolled ? "hover:text-foreground" : "hover:text-white"}>
-            {t.nav.terms}
-          </a>
-          <a href="/#contacts" className={scrolled ? "hover:text-foreground" : "hover:text-white"}>
-            {t.nav.contacts}
-          </a>
+        <div className="flex items-center gap-7">
+          <nav
+            className={`hidden items-center gap-7 text-sm transition-colors duration-300 md:flex ${
+              scrolled ? "text-foreground-muted" : "text-white/90"
+            }`}
+          >
+            <a href="/#fleet" className={scrolled ? "hover:text-foreground" : "hover:text-white"}>
+              {t.nav.fleet}
+            </a>
+            <a href="/terms" className={scrolled ? "hover:text-foreground" : "hover:text-white"}>
+              {t.nav.terms}
+            </a>
+            <a href="/#contacts" className={scrolled ? "hover:text-foreground" : "hover:text-white"}>
+              {t.nav.contacts}
+            </a>
+          </nav>
 
           <div
             className={`flex overflow-hidden rounded-full border text-xs transition-colors duration-300 ${
@@ -83,7 +85,7 @@ export function SiteHeader({ forceSolid = false }: SiteHeaderProps) {
               EN
             </button>
           </div>
-        </nav>
+        </div>
       </div>
     </header>
   );
