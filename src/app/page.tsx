@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Image from "next/image";
 import { SiteHeader } from "@/components/site-header";
 import { BookingSearch } from "@/components/booking-search";
@@ -110,14 +110,16 @@ export default function Home() {
           </div>
         </section>
 
-        <CarsSection
-          range={range}
-          searchToken={searchToken}
-          pickupZoneId={pickupZoneId}
-          returnZoneId={returnZoneId}
-          onPickupOnly={handlePickupOnly}
-          prefillComment={prefillComment}
-        />
+        <Suspense fallback={null}>
+          <CarsSection
+            range={range}
+            searchToken={searchToken}
+            pickupZoneId={pickupZoneId}
+            returnZoneId={returnZoneId}
+            onPickupOnly={handlePickupOnly}
+            prefillComment={prefillComment}
+          />
+        </Suspense>
 
         <Freebies />
         <WhyUs />

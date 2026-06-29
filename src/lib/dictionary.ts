@@ -54,6 +54,24 @@ export type Dictionary = {
     totalWithDelivery: string;
     deliveryUnavailable: (n: number) => string;
     pickupFromOffice: string;
+    filterLabel: string;
+    filterClassSection: string;
+    filterPriceSection: string;
+    filterClassEconomy: string;
+    filterClassCrossover: string;
+    filterClassPickup: string;
+    filterClassPremium: string;
+    filterClassCabrio: string;
+    filterClassSeats7: string;
+    pricePlaceholderFrom: string;
+    pricePlaceholderTo: string;
+    reset: string;
+    apply: string;
+    sortDefault: string;
+    sortCheap: string;
+    sortExpensive: string;
+    noResultsFiltered: string;
+    resetFilters: string;
   };
   cars: {
     economy: string;
@@ -223,6 +241,24 @@ export const dictionary: Record<Locale, Dictionary> = {
       totalWithDelivery: "Итого с доставкой",
       deliveryUnavailable: (n: number) => `Доставка недоступна · минимум ${n} дней для этого района`,
       pickupFromOffice: "Самовывоз из офиса",
+      filterLabel: "Фильтр",
+      filterClassSection: "Класс автомобиля",
+      filterPriceSection: "Цена за период",
+      filterClassEconomy: "Эконом",
+      filterClassCrossover: "Кроссовер",
+      filterClassPickup: "Пикап",
+      filterClassPremium: "Премиум",
+      filterClassCabrio: "Кабриолет",
+      filterClassSeats7: "7 мест",
+      pricePlaceholderFrom: "от",
+      pricePlaceholderTo: "до",
+      reset: "Сбросить",
+      apply: "Применить",
+      sortDefault: "По умолчанию",
+      sortCheap: "Сначала дешевле",
+      sortExpensive: "Сначала дороже",
+      noResultsFiltered: "По выбранным фильтрам нет автомобилей. Попробуйте изменить фильтры или даты.",
+      resetFilters: "Сбросить фильтры",
     },
     cars: {
       economy: "Эконом",
@@ -492,6 +528,24 @@ export const dictionary: Record<Locale, Dictionary> = {
       totalWithDelivery: "Total with delivery",
       deliveryUnavailable: (n: number) => `Delivery unavailable · minimum ${n} days for this zone`,
       pickupFromOffice: "Pick up from the office",
+      filterLabel: "Filter",
+      filterClassSection: "Car class",
+      filterPriceSection: "Price for the period",
+      filterClassEconomy: "Economy",
+      filterClassCrossover: "Crossover",
+      filterClassPickup: "Pickup",
+      filterClassPremium: "Premium",
+      filterClassCabrio: "Convertible",
+      filterClassSeats7: "7 seats",
+      pricePlaceholderFrom: "from",
+      pricePlaceholderTo: "to",
+      reset: "Reset",
+      apply: "Apply",
+      sortDefault: "Default",
+      sortCheap: "Cheapest first",
+      sortExpensive: "Most expensive first",
+      noResultsFiltered: "No cars match the selected filters. Try changing the filters or dates.",
+      resetFilters: "Reset filters",
     },
     cars: {
       economy: "Economy",
