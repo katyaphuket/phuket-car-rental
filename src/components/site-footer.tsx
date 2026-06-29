@@ -16,11 +16,8 @@ export function SiteFooter() {
           <p className="mt-1 max-w-xs text-xs text-foreground-faint">{t.footer.tagline}</p>
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
-          <div className="flex items-center gap-1.5 text-xs text-foreground-faint">
-            <Logo dark className="w-auto scale-75" />
-            <span>
-              · {year} · {t.footer.rights}
-            </span>
+          <div className="text-xs text-foreground-faint">
+            {year} · {t.footer.rights}
           </div>
           <div className="flex flex-wrap items-center gap-3 text-[13px] text-[#9CA3AF]">
             <Link href="/terms" className="hover:text-[#0EA5C9]">

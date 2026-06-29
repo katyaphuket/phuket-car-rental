@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useLocale } from "@/lib/locale-context";
 import { Logo } from "./logo";
 
@@ -31,7 +32,9 @@ export function SiteHeader({ forceSolid = false }: SiteHeaderProps) {
       }`}
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <Logo dark={scrolled} />
+        <Link href="/">
+          <Logo dark={scrolled} />
+        </Link>
 
         <div className="flex items-center gap-7">
           <nav

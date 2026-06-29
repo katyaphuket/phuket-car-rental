@@ -6,7 +6,7 @@ import { useLocale } from "@/lib/locale-context";
 const PHONE_DISPLAY = "+66 83 985 2000";
 const PHONE_WHATSAPP = "66839852000";
 const TELEGRAM_HANDLE = "katacars";
-const MAP_QUERY = encodeURIComponent("Ibis Phuket Kata, Kata Beach, Phuket");
+const MAP_QUERY = encodeURIComponent("KataCars, 8 Soi Plakje, Patak Rd, Mueang Phuket District, Phuket 83100");
 
 export function Contacts() {
   const { t } = useLocale();
