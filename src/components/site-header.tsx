@@ -11,6 +11,7 @@ type SiteHeaderProps = {
 export function SiteHeader({ forceSolid = false }: SiteHeaderProps) {
   const { locale, setLocale, t } = useLocale();
   const [scrolledPast, setScrolledPast] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     function handleScroll() {
@@ -85,8 +86,59 @@ export function SiteHeader({ forceSolid = false }: SiteHeaderProps) {
               EN
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-label="Menu"
+            aria-expanded={menuOpen}
+            className={`flex h-8 w-8 flex-col items-center justify-center gap-1.5 md:hidden ${
+              scrolled ? "text-foreground" : "text-white"
+            }`}
+          >
+            <span
+              className={`block h-0.5 w-5 bg-current transition-transform duration-200 ${
+                menuOpen ? "translate-y-[3.5px] rotate-45" : ""
+              }`}
+            />
+            <span
+              className={`block h-0.5 w-5 bg-current transition-transform duration-200 ${
+                menuOpen ? "-translate-y-[3.5px] -rotate-45" : ""
+              }`}
+            />
+          </button>
         </div>
       </div>
+
+      {menuOpen && (
+        <nav
+          className={`flex flex-col gap-1 border-t px-6 py-3 text-sm md:hidden ${
+            scrolled ? "border-border/70 bg-background/95 text-foreground-muted" : "border-white/10 bg-black/80 text-white/90"
+          }`}
+        >
+          <a
+            href="/#fleet"
+            onClick={() => setMenuOpen(false)}
+            className={`py-2 ${scrolled ? "hover:text-foreground" : "hover:text-white"}`}
+          >
+            {t.nav.fleet}
+          </a>
+          <a
+            href="/terms"
+            onClick={() => setMenuOpen(false)}
+            className={`py-2 ${scrolled ? "hover:text-foreground" : "hover:text-white"}`}
+          >
+            {t.nav.terms}
+          </a>
+          <a
+            href="/#contacts"
+            onClick={() => setMenuOpen(false)}
+            className={`py-2 ${scrolled ? "hover:text-foreground" : "hover:text-white"}`}
+          >
+            {t.nav.contacts}
+          </a>
+        </nav>
+      )}
     </header>
   );
 }
