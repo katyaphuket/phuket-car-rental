@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { BookingSearch } from "@/components/booking-search";
 import { CarsSection } from "@/components/cars-section";
@@ -11,6 +12,7 @@ import { HowToRent } from "@/components/how-to-rent";
 import { Reviews } from "@/components/reviews";
 import { Contacts } from "@/components/contacts";
 import { SiteFooter } from "@/components/site-footer";
+import { parseUrlDateTime, toUrlDateTime } from "@/components/date-range-picker";
 import { useLocale } from "@/lib/locale-context";
 
 const PICKUP_HOUR = 12;
@@ -32,9 +34,20 @@ function defaultRange() {
   return { start, end: addDays(start, 7) };
 }
 
+function initialRangeFromUrl() {
+  if (typeof window === "undefined") return defaultRange();
+  const params = new URLSearchParams(window.location.search);
+  const start = parseUrlDateTime(params.get("start"));
+  const end = parseUrlDateTime(params.get("end"));
+  if (!start || !end) return defaultRange();
+  return { start, end };
+}
+
 export default function Home() {
   const { t } = useLocale();
-  const [range, setRange] = useState(defaultRange);
+  const router = useRouter();
+  const pathname = usePathname();
+  const [range, setRange] = useState(initialRangeFromUrl);
   const [searchToken, setSearchToken] = useState(0);
   const [pickupZoneId, setPickupZoneId] = useState("kata");
   const [returnZoneId, setReturnZoneId] = useState("kata");
@@ -42,6 +55,12 @@ export default function Home() {
 
   function handleSearch() {
     setSearchToken((token) => token + 1);
+
+    const params = new URLSearchParams(window.location.search);
+    params.set("start", toUrlDateTime(range.start));
+    params.set("end", toUrlDateTime(range.end));
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
 
   function handlePickupOnly() {

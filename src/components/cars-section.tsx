@@ -16,7 +16,7 @@ import {
   type FleetFilters as FleetFiltersState,
   type FleetSortValue,
 } from "./fleet-filters";
-import { formatDate } from "./date-range-picker";
+import { formatDate, toUrlDateTime } from "./date-range-picker";
 import { SectionHeading } from "./section-heading";
 
 const CLASS_FILTER_VALUES: ClassFilterValue[] = ["Эконом", "Кроссовер", "Пикап", "Премиум", "Кабриолет", "seats7"];
@@ -150,6 +150,9 @@ export function CarsSection({
     if (nextSort !== "default") {
       params.set("sort", nextSort);
     }
+
+    params.set("start", toUrlDateTime(range.start));
+    params.set("end", toUrlDateTime(range.end));
 
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });

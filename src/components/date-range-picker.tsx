@@ -71,6 +71,17 @@ export function formatDate(date: Date, locale: "ru" | "en", monthNames: readonly
   return `${month.slice(0, 3)} ${day}`;
 }
 
+export function toUrlDateTime(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+export function parseUrlDateTime(value: string | null): Date | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export function DateRangePicker({ range, onChange, onTimeNoteChange }: DateRangePickerProps) {
   const { locale, t } = useLocale();
   const [open, setOpen] = useState(false);
