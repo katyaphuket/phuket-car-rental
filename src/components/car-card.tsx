@@ -2,7 +2,7 @@
 
 import { useLocale } from "@/lib/locale-context";
 import { thbToUsd, type Car, type Delivery } from "@/lib/cars";
-import { CAR_CLASS_EN, getCarFeatures, getDisplayName } from "@/lib/car-features";
+import { CAR_CLASS_EN, getCarFeatures, getDisplayName, LOW_PRICE_CAR_IDS } from "@/lib/car-features";
 import { CarPhoto } from "./car-photo";
 
 const classIcon: Record<Car["classKey"], string> = {
@@ -23,11 +23,19 @@ export function CarCard({ car, delivery, onPickupOnly, onOpen }: CarCardProps) {
   const displayName = getDisplayName(Number(car.id), car.name);
   const { carClass, year, seats } = getCarFeatures(Number(car.id), car.name);
   const carClassLabel = locale === "en" ? CAR_CLASS_EN[carClass] : carClass;
+  const isLowPrice = LOW_PRICE_CAR_IDS.has(Number(car.id));
 
   if (!delivery.available) {
     return (
       <div className="relative overflow-hidden rounded-2xl border border-border bg-surface-muted opacity-75">
-        <CarPhoto carId={car.id} alt={displayName} icon={classIcon[car.classKey]} className="aspect-[4/3] w-full" />
+        <div className="relative">
+          <CarPhoto carId={car.id} alt={displayName} icon={classIcon[car.classKey]} className="aspect-[4/3] w-full" />
+          {isLowPrice && (
+            <span className="absolute left-3 top-3 z-10 rounded-md bg-red-600 px-2.5 py-0.5 text-[11px] font-semibold text-white shadow-sm">
+              {t.fleet.lowPrice}
+            </span>
+          )}
+        </div>
 
         <div className="p-4">
           <div className="text-base font-medium text-foreground">{displayName}</div>
@@ -71,6 +79,11 @@ export function CarCard({ car, delivery, onPickupOnly, onOpen }: CarCardProps) {
         {seats === 7 && (
           <span className="absolute right-3 top-3 z-10 rounded-md bg-white px-2.5 py-0.5 text-[11px] font-medium text-gray-900">
             {t.cars.seats(7)}
+          </span>
+        )}
+        {isLowPrice && (
+          <span className="absolute bottom-3 left-3 z-10 rounded-md bg-red-600 px-2.5 py-0.5 text-[11px] font-semibold text-white shadow-sm">
+            {t.fleet.lowPrice}
           </span>
         )}
       </div>

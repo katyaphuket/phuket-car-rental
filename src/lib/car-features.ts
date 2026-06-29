@@ -609,6 +609,13 @@ export const DEFAULT_FEATURES: Omit<CarFeatures, "displayName"> = {
   ],
 };
 
+// ID машин (RentProg), на которые навешена акция "Низкая цена"
+export const LOW_PRICE_CAR_IDS = new Set<number>([
+  68767, // Mitsubishi Mirage
+  43471, // MG3 yellow
+  43472, // MG3 red
+]);
+
 const CRM_COLORS = ["white", "red", "grey", "gray", "silver", "black", "blue", "yellow"];
 
 // Парсит отображаемое название из car_name RentProg, если для машины нет записи в CAR_FEATURES:

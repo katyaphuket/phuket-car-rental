@@ -41,6 +41,7 @@ export type Dictionary = {
     availableFrom: (range: string) => string;
     perDay: string;
     popular: string;
+    lowPrice: string;
     request: string;
     total: string;
     deposit: string;
@@ -209,6 +210,7 @@ export const dictionary: Record<Locale, Dictionary> = {
       availableFrom: (range: string) => `Доступно сейчас · ${range}`,
       perDay: "/день",
       popular: "Популярно",
+      lowPrice: "Низкая цена",
       request: "Выбрать эту машину",
       total: "за весь период",
       deposit: "Депозит",
@@ -477,6 +479,7 @@ export const dictionary: Record<Locale, Dictionary> = {
       availableFrom: (range: string) => `Available now · ${range}`,
       perDay: "/day",
       popular: "Popular",
+      lowPrice: "Low price",
       request: "Request this car",
       total: "for the whole period",
       deposit: "Deposit",
