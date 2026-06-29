@@ -13,7 +13,14 @@ import { Reviews } from "@/components/reviews";
 import { Contacts } from "@/components/contacts";
 import { SiteFooter } from "@/components/site-footer";
 import { parseUrlDateTime, toUrlDateTime } from "@/components/date-range-picker";
+import { ZONES } from "@/lib/delivery-rules";
 import { useLocale } from "@/lib/locale-context";
+
+const DEFAULT_ZONE_ID = "kata";
+
+function isValidZoneId(value: string | null): value is string {
+  return value != null && ZONES.some((zone) => zone.id === value);
+}
 
 const PICKUP_HOUR = 12;
 
@@ -43,14 +50,21 @@ function initialRangeFromUrl() {
   return { start, end };
 }
 
+function initialZoneIdFromUrl(paramName: string) {
+  if (typeof window === "undefined") return DEFAULT_ZONE_ID;
+  const params = new URLSearchParams(window.location.search);
+  const value = params.get(paramName);
+  return isValidZoneId(value) ? value : DEFAULT_ZONE_ID;
+}
+
 export default function Home() {
   const { t } = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const [range, setRange] = useState(initialRangeFromUrl);
   const [searchToken, setSearchToken] = useState(0);
-  const [pickupZoneId, setPickupZoneId] = useState("kata");
-  const [returnZoneId, setReturnZoneId] = useState("kata");
+  const [pickupZoneId, setPickupZoneId] = useState(() => initialZoneIdFromUrl("pickup_zone"));
+  const [returnZoneId, setReturnZoneId] = useState(() => initialZoneIdFromUrl("return_zone"));
   const [prefillComment, setPrefillComment] = useState("");
 
   function handleSearch() {
@@ -59,6 +73,8 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search);
     params.set("start", toUrlDateTime(range.start));
     params.set("end", toUrlDateTime(range.end));
+    params.set("pickup_zone", pickupZoneId);
+    params.set("return_zone", returnZoneId);
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }

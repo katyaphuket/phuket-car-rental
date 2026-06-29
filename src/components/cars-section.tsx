@@ -68,7 +68,7 @@ function getPriority(car: Car) {
   return CAR_PRIORITY[Number(car.id)] ?? Number.MAX_SAFE_INTEGER;
 }
 
-const VISIBLE_LIMIT = 3;
+const SKELETON_COUNT = 3;
 
 function formatRentProgDate(date: Date) {
   const day = String(date.getDate()).padStart(2, "0");
@@ -121,7 +121,6 @@ export function CarsSection({
   const [cars, setCars] = useState<Car[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [showAll, setShowAll] = useState(false);
   const [selectedCar, setSelectedCar] = useState<Car | null>(null);
   const [filters, setFilters] = useState<FleetFiltersState>(() => parseFilters(searchParams));
   const [sortValue, setSortValue] = useState<FleetSortValue>(() => parseSortValue(searchParams.get("sort")));
@@ -153,6 +152,8 @@ export function CarsSection({
 
     params.set("start", toUrlDateTime(range.start));
     params.set("end", toUrlDateTime(range.end));
+    params.set("pickup_zone", pickupZoneId);
+    params.set("return_zone", returnZoneId);
 
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
@@ -160,7 +161,6 @@ export function CarsSection({
 
   function handleFiltersApply(value: FleetFiltersState) {
     setFilters(value);
-    setShowAll(true);
     updateUrlParams({ filters: value });
   }
 
@@ -170,14 +170,12 @@ export function CarsSection({
 
   function handleSortChange(value: FleetSortValue) {
     setSortValue(value);
-    setShowAll(true);
     updateUrlParams({ sortValue: value });
   }
 
   async function loadCars(activeRange: { start: Date; end: Date }) {
     setLoading(true);
     setError(false);
-    setShowAll(false);
 
     const days = daysBetween(activeRange);
     const params = new URLSearchParams({
@@ -252,7 +250,6 @@ export function CarsSection({
         return (shuffleSeed.get(a.id) ?? 0) - (shuffleSeed.get(b.id) ?? 0);
       })
     : null;
-  const visibleCars = showAll ? sortedCars : sortedCars?.slice(0, VISIBLE_LIMIT);
 
   return (
     <section id="fleet" className="mx-auto max-w-6xl px-6 py-16 sm:py-20">
@@ -272,7 +269,7 @@ export function CarsSection({
 
       {loading && (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: VISIBLE_LIMIT }).map((_, index) => (
+          {Array.from({ length: SKELETON_COUNT }).map((_, index) => (
             <CarCardSkeleton key={index} />
           ))}
         </div>
@@ -309,31 +306,17 @@ export function CarsSection({
       )}
 
       {!loading && !error && cars && cars.length > 0 && filteredCars && filteredCars.length > 0 && (
-        <>
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {visibleCars?.map((car) => (
-              <CarCard
-                key={car.id}
-                car={car}
-                delivery={getDelivery(car)}
-                onPickupOnly={onPickupOnly}
-                onOpen={() => setSelectedCar(car)}
-              />
-            ))}
-          </div>
-
-          {!showAll && filteredCars.length > VISIBLE_LIMIT && (
-            <div className="mt-8 flex justify-center">
-              <button
-                type="button"
-                onClick={() => setShowAll(true)}
-                className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-surface-muted cursor-pointer"
-              >
-                {t.fleet.showAll(filteredCars.length)}
-              </button>
-            </div>
-          )}
-        </>
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {sortedCars?.map((car) => (
+            <CarCard
+              key={car.id}
+              car={car}
+              delivery={getDelivery(car)}
+              onPickupOnly={onPickupOnly}
+              onOpen={() => setSelectedCar(car)}
+            />
+          ))}
+        </div>
       )}
 
       {selectedCar && (
