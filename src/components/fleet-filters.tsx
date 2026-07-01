@@ -71,7 +71,7 @@ function FilterPanel({
   }
 
   return (
-    <div className="absolute right-0 top-full z-50 mt-2 w-[280px] rounded-lg border border-[#E5E7EB] bg-white shadow-[0_4px_20px_rgba(0,0,0,0.1)]">
+    <div className="absolute left-0 top-full z-50 mt-2 w-[280px] max-w-[calc(100vw-1.5rem)] rounded-lg border border-[#E5E7EB] bg-white shadow-[0_4px_20px_rgba(0,0,0,0.1)] sm:left-auto sm:right-0">
       <div className="p-4">
         <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-foreground-faint">
           {t.fleet.filterClassSection}

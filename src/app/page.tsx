@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { BookingSearch } from "@/components/booking-search";
 import { CarsSection } from "@/components/cars-section";
@@ -41,36 +41,37 @@ function defaultRange() {
   return { start, end: addDays(start, 7) };
 }
 
-function initialRangeFromUrl() {
-  if (typeof window === "undefined") return defaultRange();
-  const params = new URLSearchParams(window.location.search);
-  const start = parseUrlDateTime(params.get("start"));
-  const end = parseUrlDateTime(params.get("end"));
-  if (!start || !end) return defaultRange();
-  return { start, end };
-}
-
-function initialZoneIdFromUrl(paramName: string) {
-  if (typeof window === "undefined") return DEFAULT_ZONE_ID;
-  const params = new URLSearchParams(window.location.search);
-  const value = params.get(paramName);
-  return isValidZoneId(value) ? value : DEFAULT_ZONE_ID;
-}
-
-export default function Home() {
+function HomeContent() {
   const { t } = useLocale();
   const router = useRouter();
   const pathname = usePathname();
-  const [range, setRange] = useState(initialRangeFromUrl);
+  const searchParams = useSearchParams();
+
+  const [range, setRange] = useState(() => {
+    const start = parseUrlDateTime(searchParams.get("start"));
+    const end = parseUrlDateTime(searchParams.get("end"));
+    if (start && end) return { start, end };
+    return defaultRange();
+  });
+
   const [searchToken, setSearchToken] = useState(0);
-  const [pickupZoneId, setPickupZoneId] = useState(() => initialZoneIdFromUrl("pickup_zone"));
-  const [returnZoneId, setReturnZoneId] = useState(() => initialZoneIdFromUrl("return_zone"));
+
+  const [pickupZoneId, setPickupZoneId] = useState(() => {
+    const value = searchParams.get("pickup_zone");
+    return isValidZoneId(value) ? value : DEFAULT_ZONE_ID;
+  });
+
+  const [returnZoneId, setReturnZoneId] = useState(() => {
+    const value = searchParams.get("return_zone");
+    return isValidZoneId(value) ? value : DEFAULT_ZONE_ID;
+  });
+
   const [prefillComment, setPrefillComment] = useState("");
 
   function handleSearch() {
     setSearchToken((token) => token + 1);
 
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(searchParams.toString());
     params.set("start", toUrlDateTime(range.start));
     params.set("end", toUrlDateTime(range.end));
     params.set("pickup_zone", pickupZoneId);
@@ -165,5 +166,13 @@ export default function Home() {
 
       <SiteFooter />
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={null}>
+      <HomeContent />
+    </Suspense>
   );
 }
