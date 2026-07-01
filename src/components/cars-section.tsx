@@ -19,15 +19,31 @@ import {
 import { formatDate, toUrlDateTime } from "./date-range-picker";
 import { SectionHeading } from "./section-heading";
 
-const CLASS_FILTER_VALUES: ClassFilterValue[] = ["Эконом", "Кроссовер", "Пикап", "Премиум", "Кабриолет", "seats7"];
+const CLASS_SLUG_TO_VALUE: Record<string, ClassFilterValue> = {
+  econom: "Эконом",
+  crossover: "Кроссовер",
+  pickup: "Пикап",
+  premium: "Премиум",
+  cabrio: "Кабриолет",
+  seats7: "seats7",
+};
+
+const CLASS_VALUE_TO_SLUG: Record<ClassFilterValue, string> = {
+  "Эконом": "econom",
+  "Кроссовер": "crossover",
+  "Пикап": "pickup",
+  "Премиум": "premium",
+  "Кабриолет": "cabrio",
+  "seats7": "seats7",
+};
 
 function parseFilters(searchParams: URLSearchParams): FleetFiltersState {
   const classParam = searchParams.get("class");
   const classes = classParam
     ? classParam
         .split(",")
-        .map((value) => value.trim())
-        .filter((value): value is ClassFilterValue => (CLASS_FILTER_VALUES as string[]).includes(value))
+        .map((slug) => CLASS_SLUG_TO_VALUE[slug.trim().toLowerCase()])
+        .filter((value): value is ClassFilterValue => value != null)
     : [];
 
   const priceMinParam = searchParams.get("price_min");
@@ -137,7 +153,7 @@ export function CarsSection({
     const nextSort = next.sortValue ?? sortValue;
 
     if (nextFilters.classes.length > 0) {
-      params.set("class", nextFilters.classes.join(","));
+      params.set("class", nextFilters.classes.map((c) => CLASS_VALUE_TO_SLUG[c]).join(","));
     }
     if (nextFilters.priceMin != null) {
       params.set("price_min", String(nextFilters.priceMin));
