@@ -268,7 +268,7 @@ export function CarsSection({
     : null;
 
   return (
-    <section id="fleet" className="mx-auto max-w-6xl px-6 py-16 sm:py-20">
+    <section id="fleet" className="mx-auto max-w-6xl scroll-mt-20 px-6 py-16 sm:py-20">
       <SectionHeading eyebrow={t.fleet.eyebrow} title={t.fleet.title} align="center" />
 
       <FleetFiltersBar

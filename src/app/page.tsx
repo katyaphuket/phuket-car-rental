@@ -78,6 +78,8 @@ function HomeContent() {
     params.set("return_zone", returnZoneId);
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+
+    document.getElementById("fleet")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function handlePickupOnly() {
