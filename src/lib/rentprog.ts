@@ -75,7 +75,7 @@ async function rentprogGet<T>(path: string, params: Record<string, string>, atte
   if (res.status === 429 && attempt < 5) {
     const retryAfterHeader = Number(res.headers.get("retry-after"));
     const delayMs = Number.isFinite(retryAfterHeader) && retryAfterHeader > 0
-      ? retryAfterHeader * 1000
+      ? Math.min(retryAfterHeader * 1000, 3000)
       : 500 * (attempt + 1);
     await sleep(delayMs);
     return rentprogGet<T>(path, params, attempt + 1);

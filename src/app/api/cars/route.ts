@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchCarData, fetchFreeCars } from "@/lib/rentprog";
-import { mapRentProgCar } from "@/lib/cars";
+import { mapRentProgCar, type Car } from "@/lib/cars";
 import { CAR_PRIORITY } from "@/lib/car-priority";
 
 const CONCURRENCY_LIMIT = 2;
@@ -40,10 +40,17 @@ export async function GET(request: NextRequest) {
   try {
     const freeCars = await fetchFreeCars(startDate, endDate);
 
-    const cars = await mapWithConcurrency(freeCars, CONCURRENCY_LIMIT, async (free) => {
-      const data = await fetchCarData(free.id, startDate, endDate, days);
-      return mapRentProgCar(free, data, days);
+    const results = await mapWithConcurrency(freeCars, CONCURRENCY_LIMIT, async (free) => {
+      try {
+        const data = await fetchCarData(free.id, startDate, endDate, days);
+        return mapRentProgCar(free, data, days);
+      } catch (error) {
+        console.error(`RentProg car_data failed for car ${free.id}:`, error);
+        return null;
+      }
     });
+
+    const cars = results.filter((car): car is Car => car !== null);
 
     const sorted = cars.sort((a, b) => {
       const groupA = CAR_PRIORITY[Number(a.id)] ?? 2;
