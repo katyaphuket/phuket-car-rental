@@ -5,7 +5,7 @@ export type Feature = {
   label: string; // подпись
 };
 
-export type CarClass = "Эконом" | "Эконом+" | "Эконом Top" | "Кроссовер" | "Пикап" | "Премиум" | "Кабриолет";
+export type CarClass = "Эконом" | "Эконом+" | "Эконом Top" | "Кроссовер" | "Пикап" | "Премиум" | "Кабриолет" | "Родстер";
 
 export type CarFeatures = {
   displayName: string; // отображаемое название машины (вместо car_name из RentProg)
@@ -573,6 +573,29 @@ export const CAR_FEATURES: Record<number, CarFeatures> = {
     ],
   },
 
+  80126: {
+    displayName: "MG Cyberster",
+    carClass: "Родстер",
+    year: 2025,
+    description:
+      "Футуристичный электрический родстер с ярким дизайном и дверями в стиле «крыло-ножницы». Двухместный салон, мгновенный разгон и открытая крыша делают MG Cyberster идеальным автомобилем для эффектных поездок по Пхукету.",
+    bodyType: "родстер",
+    drive: "задний",
+    engine: "электро (340 л.с.)",
+    seats: 2,
+    highlight: "Электро · Родстер",
+    features: [
+      { icon: "⚡", label: "Электродвигатель 340 л.с." },
+      { icon: "🔋", label: "Запас хода до 500 км (WLTP)" },
+      { icon: "🚗", label: "Двери «крыло-ножницы»" },
+      { icon: "🌤️", label: "Электрическая мягкая крыша" },
+      { icon: "🖥️", label: "Цифровая приборная панель" },
+      { icon: "📱", label: "Apple CarPlay / Android Auto" },
+      { icon: "🔑", label: "Бесключевой доступ / Start-Stop" },
+      { icon: "📷", label: "Камеры и парктроники" },
+    ],
+  },
+
   43535: {
     displayName: "Mercedes-Benz E200 AMG Cabrio",
     carClass: "Кабриолет",
@@ -644,6 +667,7 @@ export const CAR_CLASS_EN: Record<CarClass, string> = {
   "Пикап": "Pickup",
   "Премиум": "Premium",
   "Кабриолет": "Convertible",
+  "Родстер": "Roadster",
 };
 
 const BODY_TYPE_EN: Record<string, string> = {
@@ -653,6 +677,7 @@ const BODY_TYPE_EN: Record<string, string> = {
   "пикап": "pickup",
   "внедорожник": "SUV",
   "кабриолет": "convertible",
+  "родстер": "roadster",
 };
 
 const DRIVE_EN: Record<string, string> = {
@@ -675,6 +700,7 @@ const ENGINE_EN: Record<string, string> = {
   "2.0 турбо бензин (190 л.с.)": "2.0 turbo petrol (190 hp)",
   "2.4 дизель": "2.4 diesel",
   "автомат": "automatic",
+  "электро (340 л.с.)": "electric (340 hp)",
 };
 
 const FEATURE_LABEL_EN: Record<string, string> = {
@@ -713,6 +739,12 @@ const FEATURE_LABEL_EN: Record<string, string> = {
   "Складная крыша кабриолета": "Convertible folding roof",
   "Тонировка": "Tinted windows",
   "Экономичный расход": "Fuel-efficient",
+  "Электродвигатель 340 л.с.": "Electric motor 340 hp",
+  "Запас хода до 500 км (WLTP)": "Range up to 500 km (WLTP)",
+  "Электрическая мягкая крыша": "Electric soft-top roof",
+  "Двери «крыло-ножницы»": "Scissor-wing doors",
+  "Цифровая приборная панель": "Digital instrument cluster",
+  "Камеры и парктроники": "Cameras and parking sensors",
 };
 
 const HIGHLIGHT_EN: Record<string, string> = {
@@ -730,6 +762,7 @@ const HIGHLIGHT_EN: Record<string, string> = {
   "M-пакет": "M Package",
   "Кабриолет": "Convertible",
   "AMG · Кабриолет": "AMG · Convertible",
+  "Электро · Родстер": "Electric · Roadster",
 };
 
 const DESCRIPTION_EN: Record<string, string> = {
@@ -788,6 +821,8 @@ const DESCRIPTION_EN: Record<string, string> = {
   "Универсальный кроссовер с панорамной крышей — комфорт для поездок по Пхукету. Просторный, удобный и хорошо оснащённый.":
     "A versatile crossover with a panoramic roof — comfort for trips around Phuket. Roomy, convenient, and well-equipped.",
   "Надёжный автомобиль для комфортных поездок по Пхукету.": "A reliable car for comfortable trips around Phuket.",
+  "Футуристичный электрический родстер с ярким дизайном и дверями в стиле «крыло-ножницы». Двухместный салон, мгновенный разгон и открытая крыша делают MG Cyberster идеальным автомобилем для эффектных поездок по Пхукету.":
+    "A futuristic electric roadster with a striking design and scissor-wing doors. A two-seat cabin, instant acceleration, and an open roof make the MG Cyberster the perfect car for unforgettable rides around Phuket.",
 };
 
 function translateOr<T extends string>(map: Record<string, string>, value: T): string {
