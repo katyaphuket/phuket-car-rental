@@ -45,6 +45,8 @@ export type Dictionary = {
     request: string;
     total: string;
     deposit: string;
+    errorMessage: string;
+    retry: string;
     empty: string;
     showAll: (n: number) => string;
     delivery: string;
@@ -70,25 +72,6 @@ export type Dictionary = {
     sortExpensive: string;
     noResultsFiltered: string;
     resetFilters: string;
-    accessIssue: {
-      title: string;
-      subtitle: string;
-      namePlaceholder: string;
-      contactPlaceholder: string;
-      nameRequired: string;
-      contactRequired: string;
-      contactMethodLabel: string;
-      whatsapp: string;
-      telegram: string;
-      max: string;
-      call: string;
-      consentPrefix: string;
-      consentLabel: string;
-      submit: string;
-      submitting: string;
-      submitError: string;
-      successTitle: string;
-    };
   };
   cars: {
     economy: string;
@@ -249,6 +232,8 @@ export const dictionary: Record<Locale, Dictionary> = {
       request: "Выбрать эту машину",
       total: "за весь период",
       deposit: "Депозит",
+      errorMessage: "Не удалось загрузить автомобили. Попробуйте ещё раз.",
+      retry: "Попробовать снова",
       empty: "На эти даты нет доступных машин",
       showAll: (n: number) => `Показать все ${n} автомобилей`,
       delivery: "Доставка",
@@ -274,25 +259,6 @@ export const dictionary: Record<Locale, Dictionary> = {
       sortExpensive: "Сначала дороже",
       noResultsFiltered: "По выбранным фильтрам нет автомобилей. Попробуйте изменить фильтры или даты.",
       resetFilters: "Сбросить фильтры",
-      accessIssue: {
-        title: "Похоже, у вас не работает доступ к сайту из России",
-        subtitle: "Попробуйте включить VPN или оставьте свои контакты — мы свяжемся с вами",
-        namePlaceholder: "Имя",
-        contactPlaceholder: "Телефон или ник в Telegram",
-        nameRequired: "Укажите имя",
-        contactRequired: "Укажите телефон или ник в Telegram",
-        contactMethodLabel: "Удобный способ связи",
-        whatsapp: "WhatsApp",
-        telegram: "Telegram",
-        max: "MAX",
-        call: "Звонок на телефон",
-        consentPrefix: "Я даю согласие на обработку моих персональных данных в соответствии с",
-        consentLabel: "Политикой обработки персональных данных",
-        submit: "Отправить",
-        submitting: "Отправляем...",
-        submitError: "Не удалось отправить заявку. Попробуйте ещё раз или напишите нам в WhatsApp.",
-        successTitle: "Спасибо! Мы свяжемся с вами в ближайшее время",
-      },
     },
     cars: {
       economy: "Эконом",
@@ -553,6 +519,8 @@ export const dictionary: Record<Locale, Dictionary> = {
       request: "Request this car",
       total: "for the whole period",
       deposit: "Deposit",
+      errorMessage: "Couldn't load the cars. Please try again.",
+      retry: "Try again",
       empty: "No cars available for these dates",
       showAll: (n: number) => `Show all ${n} cars`,
       delivery: "Delivery",
@@ -578,25 +546,6 @@ export const dictionary: Record<Locale, Dictionary> = {
       sortExpensive: "Most expensive first",
       noResultsFiltered: "No cars match the selected filters. Try changing the filters or dates.",
       resetFilters: "Reset filters",
-      accessIssue: {
-        title: "It looks like the site isn't accessible from your region",
-        subtitle: "Try turning on a VPN, or leave your contact details — we'll reach out to you",
-        namePlaceholder: "Name",
-        contactPlaceholder: "Phone or Telegram username",
-        nameRequired: "Please enter your name",
-        contactRequired: "Please enter a phone number or Telegram username",
-        contactMethodLabel: "Preferred way to contact you",
-        whatsapp: "WhatsApp",
-        telegram: "Telegram",
-        max: "MAX",
-        call: "Phone call",
-        consentPrefix: "I consent to the processing of my personal data in accordance with the",
-        consentLabel: "Personal Data Processing Policy",
-        submit: "Submit",
-        submitting: "Sending...",
-        submitError: "Couldn't send your request. Please try again or message us on WhatsApp.",
-        successTitle: "Thank you! We'll contact you shortly",
-      },
     },
     cars: {
       economy: "Economy",

@@ -16,7 +16,6 @@ import {
 } from "./fleet-filters";
 import { formatDate } from "./date-range-picker";
 import { SectionHeading } from "./section-heading";
-import { RuAccessForm } from "./ru-access-form";
 
 function matchesFilters(car: Car, filters: FleetFiltersState, totalPrice: number) {
   if (filters.classes.length > 0) {
@@ -211,7 +210,18 @@ export function CarsSection({
         </div>
       )}
 
-      {!loading && error && <RuAccessForm />}
+      {!loading && error && (
+        <div className="flex flex-col items-center gap-3 py-10 text-center">
+          <p className="text-sm text-foreground-muted">{t.fleet.errorMessage}</p>
+          <button
+            type="button"
+            onClick={() => loadCars(range)}
+            className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-surface-muted cursor-pointer"
+          >
+            {t.fleet.retry}
+          </button>
+        </div>
+      )}
 
       {!loading && !error && cars && cars.length === 0 && (
         <p className="py-10 text-center text-sm text-foreground-muted">{t.fleet.empty}</p>
