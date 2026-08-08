@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useLocale } from "@/lib/locale-context";
 import type { Car, Delivery } from "@/lib/cars";
 import { getCarFeatures } from "@/lib/car-features";
@@ -12,53 +11,11 @@ import { CarModal } from "./car-modal";
 import {
   EMPTY_FILTERS,
   FleetFilters as FleetFiltersBar,
-  type ClassFilterValue,
   type FleetFilters as FleetFiltersState,
   type FleetSortValue,
 } from "./fleet-filters";
-import { formatDate, toUrlDateTime } from "./date-range-picker";
+import { formatDate } from "./date-range-picker";
 import { SectionHeading } from "./section-heading";
-
-const CLASS_SLUG_TO_VALUE: Record<string, ClassFilterValue> = {
-  econom: "Эконом",
-  crossover: "Кроссовер",
-  pickup: "Пикап",
-  premium: "Премиум",
-  cabrio: "Кабриолет",
-  seats7: "seats7",
-};
-
-const CLASS_VALUE_TO_SLUG: Record<ClassFilterValue, string> = {
-  "Эконом": "econom",
-  "Кроссовер": "crossover",
-  "Пикап": "pickup",
-  "Премиум": "premium",
-  "Кабриолет": "cabrio",
-  "seats7": "seats7",
-};
-
-function parseFilters(searchParams: URLSearchParams): FleetFiltersState {
-  const classParam = searchParams.get("class");
-  const classes = classParam
-    ? classParam
-        .split(",")
-        .map((slug) => CLASS_SLUG_TO_VALUE[slug.trim().toLowerCase()])
-        .filter((value): value is ClassFilterValue => value != null)
-    : [];
-
-  const priceMinParam = searchParams.get("price_min");
-  const priceMaxParam = searchParams.get("price_max");
-  const priceMin = priceMinParam !== null && !Number.isNaN(Number(priceMinParam)) ? Number(priceMinParam) : undefined;
-  const priceMax = priceMaxParam !== null && !Number.isNaN(Number(priceMaxParam)) ? Number(priceMaxParam) : undefined;
-
-  return { classes, priceMin, priceMax };
-}
-
-function parseSortValue(value: string | null): FleetSortValue {
-  if (value === "asc") return "asc";
-  if (value === "desc") return "desc";
-  return "default";
-}
 
 function matchesFilters(car: Car, filters: FleetFiltersState, totalPrice: number) {
   if (filters.classes.length > 0) {
@@ -131,62 +88,24 @@ export function CarsSection({
   prefillComment,
 }: CarsSectionProps) {
   const { locale, t } = useLocale();
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [cars, setCars] = useState<Car[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [selectedCar, setSelectedCar] = useState<Car | null>(null);
-  const [filters, setFilters] = useState<FleetFiltersState>(() => parseFilters(searchParams));
-  const [sortValue, setSortValue] = useState<FleetSortValue>(() => parseSortValue(searchParams.get("sort")));
+  const [filters, setFilters] = useState<FleetFiltersState>(EMPTY_FILTERS);
+  const [sortValue, setSortValue] = useState<FleetSortValue>("default");
   const [shuffleSeed, setShuffleSeed] = useState<Map<string, number>>(new Map());
-
-  function updateUrlParams(next: { filters?: FleetFiltersState; sortValue?: FleetSortValue }) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("class");
-    params.delete("price_min");
-    params.delete("price_max");
-    params.delete("sort");
-
-    const nextFilters = next.filters ?? filters;
-    const nextSort = next.sortValue ?? sortValue;
-
-    if (nextFilters.classes.length > 0) {
-      params.set("class", nextFilters.classes.map((c) => CLASS_VALUE_TO_SLUG[c]).join(","));
-    }
-    if (nextFilters.priceMin != null) {
-      params.set("price_min", String(nextFilters.priceMin));
-    }
-    if (nextFilters.priceMax != null) {
-      params.set("price_max", String(nextFilters.priceMax));
-    }
-
-    if (nextSort !== "default") {
-      params.set("sort", nextSort);
-    }
-
-    params.set("start", toUrlDateTime(range.start));
-    params.set("end", toUrlDateTime(range.end));
-    params.set("pickup_zone", pickupZoneId);
-    params.set("return_zone", returnZoneId);
-
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }
 
   function handleFiltersApply(value: FleetFiltersState) {
     setFilters(value);
-    updateUrlParams({ filters: value });
   }
 
   function handleResetFilters() {
-    handleFiltersApply(EMPTY_FILTERS);
+    setFilters(EMPTY_FILTERS);
   }
 
   function handleSortChange(value: FleetSortValue) {
     setSortValue(value);
-    updateUrlParams({ sortValue: value });
   }
 
   async function loadCars(activeRange: { start: Date; end: Date }) {
@@ -268,7 +187,7 @@ export function CarsSection({
     : null;
 
   return (
-    <section id="fleet" className="mx-auto max-w-6xl scroll-mt-20 px-6 py-16 sm:py-20">
+    <section id="fleet" className="mx-auto max-w-6xl px-6 py-16 sm:py-20">
       <SectionHeading eyebrow={t.fleet.eyebrow} title={t.fleet.title} align="center" />
 
       <FleetFiltersBar

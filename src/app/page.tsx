@@ -2,7 +2,6 @@
 
 import { Suspense, useState } from "react";
 import Image from "next/image";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { BookingSearch } from "@/components/booking-search";
 import { CarsSection } from "@/components/cars-section";
@@ -12,16 +11,9 @@ import { HowToRent } from "@/components/how-to-rent";
 import { Reviews } from "@/components/reviews";
 import { Contacts } from "@/components/contacts";
 import { SiteFooter } from "@/components/site-footer";
-import { parseUrlDateTime, toUrlDateTime } from "@/components/date-range-picker";
-import { ZONES } from "@/lib/delivery-rules";
 import { useLocale } from "@/lib/locale-context";
 
 const DEFAULT_ZONE_ID = "kata";
-
-function isValidZoneId(value: string | null): value is string {
-  return value != null && ZONES.some((zone) => zone.id === value);
-}
-
 const PICKUP_HOUR = 12;
 
 function startOfDay(date: Date) {
@@ -41,44 +33,16 @@ function defaultRange() {
   return { start, end: addDays(start, 7) };
 }
 
-function HomeContent() {
+export default function Home() {
   const { t } = useLocale();
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
-  const [range, setRange] = useState(() => {
-    const start = parseUrlDateTime(searchParams.get("start"));
-    const end = parseUrlDateTime(searchParams.get("end"));
-    if (start && end) return { start, end };
-    return defaultRange();
-  });
-
+  const [range, setRange] = useState(defaultRange);
   const [searchToken, setSearchToken] = useState(0);
-
-  const [pickupZoneId, setPickupZoneId] = useState(() => {
-    const value = searchParams.get("pickup_zone");
-    return isValidZoneId(value) ? value : DEFAULT_ZONE_ID;
-  });
-
-  const [returnZoneId, setReturnZoneId] = useState(() => {
-    const value = searchParams.get("return_zone");
-    return isValidZoneId(value) ? value : DEFAULT_ZONE_ID;
-  });
-
+  const [pickupZoneId, setPickupZoneId] = useState(DEFAULT_ZONE_ID);
+  const [returnZoneId, setReturnZoneId] = useState(DEFAULT_ZONE_ID);
   const [prefillComment, setPrefillComment] = useState("");
 
   function handleSearch() {
     setSearchToken((token) => token + 1);
-
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("start", toUrlDateTime(range.start));
-    params.set("end", toUrlDateTime(range.end));
-    params.set("pickup_zone", pickupZoneId);
-    params.set("return_zone", returnZoneId);
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-
     document.getElementById("fleet")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -168,13 +132,5 @@ function HomeContent() {
 
       <SiteFooter />
     </div>
-  );
-}
-
-export default function Home() {
-  return (
-    <Suspense fallback={null}>
-      <HomeContent />
-    </Suspense>
   );
 }
