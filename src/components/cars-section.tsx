@@ -16,6 +16,7 @@ import {
 } from "./fleet-filters";
 import { formatDate } from "./date-range-picker";
 import { SectionHeading } from "./section-heading";
+import { RuAccessBanner, RuAccessFallback, useLooksLikeRuUser } from "./ru-access-fallback";
 
 function matchesFilters(car: Car, filters: FleetFiltersState, totalPrice: number) {
   if (filters.classes.length > 0) {
@@ -42,6 +43,7 @@ function getPriority(car: Car) {
 }
 
 const SKELETON_COUNT = 3;
+const FETCH_TIMEOUT_MS = 4500;
 
 function formatRentProgDate(date: Date) {
   const day = String(date.getDate()).padStart(2, "0");
@@ -88,6 +90,7 @@ export function CarsSection({
   prefillComment,
 }: CarsSectionProps) {
   const { locale, t } = useLocale();
+  const likelyRu = useLooksLikeRuUser();
   const [cars, setCars] = useState<Car[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -120,7 +123,7 @@ export function CarsSection({
     });
 
     try {
-      const res = await fetch(`/api/cars?${params.toString()}`);
+      const res = await fetch(`/api/cars?${params.toString()}`, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
       if (!res.ok) throw new Error("request failed");
       const data: Car[] = await res.json();
       setCars(data);
@@ -202,6 +205,8 @@ export function CarsSection({
         {t.fleet.availableFrom(rangeLabel)}
       </p>
 
+      {loading && likelyRu && <RuAccessBanner />}
+
       {loading && (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: SKELETON_COUNT }).map((_, index) => (
@@ -210,18 +215,7 @@ export function CarsSection({
         </div>
       )}
 
-      {!loading && error && (
-        <div className="flex flex-col items-center gap-3 py-10 text-center">
-          <p className="text-sm text-foreground-muted">{t.fleet.errorMessage}</p>
-          <button
-            type="button"
-            onClick={() => loadCars(range)}
-            className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-surface-muted cursor-pointer"
-          >
-            {t.fleet.retry}
-          </button>
-        </div>
-      )}
+      {!loading && error && <RuAccessFallback onRetry={() => loadCars(range)} />}
 
       {!loading && !error && cars && cars.length === 0 && (
         <p className="py-10 text-center text-sm text-foreground-muted">{t.fleet.empty}</p>

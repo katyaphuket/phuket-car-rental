@@ -45,7 +45,6 @@ export type Dictionary = {
     request: string;
     total: string;
     deposit: string;
-    errorMessage: string;
     retry: string;
     empty: string;
     showAll: (n: number) => string;
@@ -72,6 +71,15 @@ export type Dictionary = {
     sortExpensive: string;
     noResultsFiltered: string;
     resetFilters: string;
+    accessIssue: {
+      title: string;
+      subtitle: string;
+      bannerText: string;
+      whatsapp: string;
+      telegram: string;
+      max: string;
+      prefillMessage: string;
+    };
   };
   cars: {
     economy: string;
@@ -232,7 +240,6 @@ export const dictionary: Record<Locale, Dictionary> = {
       request: "Выбрать эту машину",
       total: "за весь период",
       deposit: "Депозит",
-      errorMessage: "Не удалось загрузить автомобили. Попробуйте ещё раз.",
       retry: "Попробовать снова",
       empty: "На эти даты нет доступных машин",
       showAll: (n: number) => `Показать все ${n} автомобилей`,
@@ -259,6 +266,15 @@ export const dictionary: Record<Locale, Dictionary> = {
       sortExpensive: "Сначала дороже",
       noResultsFiltered: "По выбранным фильтрам нет автомобилей. Попробуйте изменить фильтры или даты.",
       resetFilters: "Сбросить фильтры",
+      accessIssue: {
+        title: "Похоже, у вас не работает доступ к сайту из России",
+        subtitle: "Попробуйте включить VPN или напишите нам напрямую — поможем с выбором и расчётом",
+        bannerText: "Если список машин долго не грузится — попробуйте включить VPN или напишите нам напрямую",
+        whatsapp: "Написать в WhatsApp",
+        telegram: "Написать в Telegram",
+        max: "Написать в MAX",
+        prefillMessage: "Здравствуйте! Не могу открыть сайт из России, хочу узнать про аренду авто на Пхукете",
+      },
     },
     cars: {
       economy: "Эконом",
@@ -519,7 +535,6 @@ export const dictionary: Record<Locale, Dictionary> = {
       request: "Request this car",
       total: "for the whole period",
       deposit: "Deposit",
-      errorMessage: "Couldn't load the cars. Please try again.",
       retry: "Try again",
       empty: "No cars available for these dates",
       showAll: (n: number) => `Show all ${n} cars`,
@@ -546,6 +561,15 @@ export const dictionary: Record<Locale, Dictionary> = {
       sortExpensive: "Most expensive first",
       noResultsFiltered: "No cars match the selected filters. Try changing the filters or dates.",
       resetFilters: "Reset filters",
+      accessIssue: {
+        title: "It looks like the site isn't accessible from your region",
+        subtitle: "Try turning on a VPN, or message us directly — we'll help you pick a car and get a quote",
+        bannerText: "If the car list is taking a while to load — try a VPN or message us directly",
+        whatsapp: "Message on WhatsApp",
+        telegram: "Message on Telegram",
+        max: "Message on MAX",
+        prefillMessage: "Hi! I can't open the site from Russia and I'd like to ask about car rental in Phuket",
+      },
     },
     cars: {
       economy: "Economy",

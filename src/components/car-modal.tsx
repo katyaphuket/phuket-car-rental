@@ -13,6 +13,7 @@ import { PhotoPlaceholder } from "./photo-placeholder";
 const WASH_FEE = 400;
 const MAX_PHOTOS = 6;
 const WHATSAPP_NUMBER = "66839852000";
+const FETCH_TIMEOUT_MS = 6000;
 
 type CarModalProps = {
   car: Car;
@@ -183,6 +184,7 @@ export function CarModal({
           total,
           deposit: car.depositThb,
         }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) throw new Error("request failed");
       trackBookingSubmit();
