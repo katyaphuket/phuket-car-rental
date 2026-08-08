@@ -846,7 +846,7 @@ export function translateCarFeatures(features: CarFeatures, locale: Locale): Car
 
   return {
     ...features,
-    carClass: features.carClass,
+    carClass: (CAR_CLASS_EN[features.carClass] ?? features.carClass) as CarClass,
     description: translateOr(DESCRIPTION_EN, features.description),
     bodyType: translateOr(BODY_TYPE_EN, features.bodyType),
     drive: translateOr(DRIVE_EN, features.drive),

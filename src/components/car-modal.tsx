@@ -320,7 +320,7 @@ export function CarModal({
         <div>
           <h2 className="text-lg font-semibold text-foreground">{displayName}</h2>
           <p className="text-sm text-foreground-faint">
-            {t.cars[car.classKey]} · {transmissionLabel}
+            {features.carClass} · {transmissionLabel}
           </p>
           <p className="mt-1 text-sm text-foreground-faint">
             {features.bodyType} · {features.engine} · {t.cars.year(features.year)}

@@ -4,7 +4,7 @@ export type CarClass = "economy" | "economy_plus" | "comfort" | "cabrio" | "prem
 export function getCarClass(carName: string): CarClass {
   const name = carName.toLowerCase();
   if (name.includes("mg5") || name.includes("mg 5")) return "economy";
-  if (name.includes("кабриолет") || name.includes("cabrio")) return "cabrio";
+  if (name.includes("кабриолет") || name.includes("cabrio") || name.includes("cyberster")) return "cabrio";
   if (name.includes("премиум") || name.includes("premium")) return "premium";
   if (name.includes("комфорт") || name.includes("пикап") || name.includes("pickup")) return "comfort";
   if (name.includes("эконом+")) return "economy_plus";
