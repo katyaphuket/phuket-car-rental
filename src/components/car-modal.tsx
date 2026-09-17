@@ -29,11 +29,32 @@ type CarModalProps = {
 type Step = "car" | "request" | "thanks" | "error";
 type Messenger = "whatsapp" | "telegram" | "max";
 
+const PHONE_MASKS: { code: string; groups: number[] }[] = [
+  { code: "66", groups: [2, 3, 4] }, // Thailand: +66 83 275 5286
+  { code: "7", groups: [3, 3, 4] }, // Russia/Kazakhstan: +7 926 170 1331
+];
+
 function formatPhoneInput(raw: string) {
-  const hasPlus = raw.trim().startsWith("+");
   const digits = raw.replace(/\D/g, "").slice(0, 15);
-  const grouped = digits.replace(/(\d{1,3})(?=(\d{3})+(?!\d))/g, "$1 ");
-  return (hasPlus ? "+" : "") + grouped;
+  if (!digits) return "";
+
+  const mask = PHONE_MASKS.find((m) => digits.startsWith(m.code));
+  if (!mask) {
+    const grouped = digits.replace(/(\d{1,3})(?=(\d{3})+(?!\d))/g, "$1 ");
+    return `+${grouped}`;
+  }
+
+  const rest = digits.slice(mask.code.length);
+  const parts: string[] = [];
+  let i = 0;
+  for (const size of mask.groups) {
+    if (i >= rest.length) break;
+    parts.push(rest.slice(i, i + size));
+    i += size;
+  }
+  if (i < rest.length) parts.push(rest.slice(i));
+
+  return `+${mask.code}${parts.length ? " " + parts.join(" ") : ""}`;
 }
 
 function formatDateTime(date: Date) {
