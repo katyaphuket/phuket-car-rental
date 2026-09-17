@@ -119,17 +119,25 @@ export function DateRangePicker({ range, onChange, onTimeNoteChange }: DateRange
     (startOfDay(draft.end).getTime() - startOfDay(draft.start).getTime()) / 86400000
   );
 
+  function commitRange(newRange: { start: Date; end: Date }, pickup = pickupTime, ret = returnTime) {
+    setDraft(newRange);
+    onChange({
+      start: withTime(newRange.start, pickup),
+      end: withTime(newRange.end, ret),
+    });
+  }
+
   function handlePickDay(day: Date) {
     if (day.getTime() < today.getTime()) return;
     if (selecting === "start") {
-      setDraft({ start: day, end: addDays(day, Math.max(nights, 1)) });
+      commitRange({ start: day, end: addDays(day, Math.max(nights, 1)) });
       setSelecting("end");
     } else {
       if (day.getTime() <= draft.start.getTime()) {
-        setDraft({ start: day, end: addDays(day, 1) });
+        commitRange({ start: day, end: addDays(day, 1) });
         setSelecting("end");
       } else {
-        setDraft((prev) => ({ ...prev, end: day }));
+        commitRange({ ...draft, end: day });
         setSelecting("start");
       }
     }
@@ -137,12 +145,20 @@ export function DateRangePicker({ range, onChange, onTimeNoteChange }: DateRange
 
   function handlePickupTimeChange(value: string) {
     setPickupTime(value);
-    if (value === OTHER_TIME) onTimeNoteChange?.(t.search.otherTimeNote);
+    if (value === OTHER_TIME) {
+      onTimeNoteChange?.(t.search.otherTimeNote);
+      return;
+    }
+    onChange({ start: withTime(draft.start, value), end: withTime(draft.end, returnTime) });
   }
 
   function handleReturnTimeChange(value: string) {
     setReturnTime(value);
-    if (value === OTHER_TIME) onTimeNoteChange?.(t.search.otherTimeNote);
+    if (value === OTHER_TIME) {
+      onTimeNoteChange?.(t.search.otherTimeNote);
+      return;
+    }
+    onChange({ start: withTime(draft.start, pickupTime), end: withTime(draft.end, value) });
   }
 
   function handleApply() {
