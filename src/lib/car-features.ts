@@ -444,6 +444,26 @@ export const CAR_FEATURES: Record<number, CarFeatures> = {
     ],
   },
 
+  49968: {
+    displayName: "Mazda CX-30",
+    carClass: "Кроссовер",
+    year: 2023,
+    description:
+      "Премиальный кроссовер с турбированным двигателем и комфортом бизнес-класса. Идеально подходит для путешествий по Пхукету — мягкая подвеска, уверенная динамика и высокий уровень безопасности.",
+    bodyType: "кроссовер",
+    drive: "передний",
+    engine: "2.0 турбо бензин (190 л.с.)",
+    highlight: "Bose · 360°",
+    features: [
+      { icon: "📷", label: "Камеры 360°" },
+      { icon: "🛋️", label: "Кожаный салон с алькантарой" },
+      { icon: "🎶", label: "Акустика Bose" },
+      { icon: "📱", label: "Apple CarPlay / Android Auto" },
+      { icon: "❄️", label: "Раздельный климат-контроль" },
+      { icon: "🌤️", label: "Люк на крыше" },
+    ],
+  },
+
   71173: {
     displayName: "Mazda CX-30",
     carClass: "Кроссовер",
@@ -722,6 +742,7 @@ const FEATURE_LABEL_EN: Record<string, string> = {
   "Камеры 360°": "360° cameras",
   "Климат-контроль": "Climate control",
   "Кожаный салон": "Leather interior",
+  "Кожаный салон с алькантарой": "Leather and Alcantara interior",
   "Кондиционер": "Air conditioning",
   "Красный кожаный салон": "Red leather interior",
   "Красный кожаный салон AMG": "Red AMG leather interior",
@@ -821,6 +842,8 @@ const DESCRIPTION_EN: Record<string, string> = {
   "Универсальный кроссовер с панорамной крышей — комфорт для поездок по Пхукету. Просторный, удобный и хорошо оснащённый.":
     "A versatile crossover with a panoramic roof — comfort for trips around Phuket. Roomy, convenient, and well-equipped.",
   "Надёжный автомобиль для комфортных поездок по Пхукету.": "A reliable car for comfortable trips around Phuket.",
+  "Премиальный кроссовер с турбированным двигателем и комфортом бизнес-класса. Идеально подходит для путешествий по Пхукету — мягкая подвеска, уверенная динамика и высокий уровень безопасности.":
+    "A premium crossover with a turbocharged engine and business-class comfort. Perfect for travelling around Phuket — soft suspension, confident dynamics, and a high level of safety.",
   "Футуристичный электрический родстер с ярким дизайном и дверями в стиле «крыло-ножницы». Двухместный салон, мгновенный разгон и открытая крыша делают MG Cyberster идеальным автомобилем для эффектных поездок по Пхукету.":
     "A futuristic electric roadster with a striking design and scissor-wing doors. A two-seat cabin, instant acceleration, and an open roof make the MG Cyberster the perfect car for unforgettable rides around Phuket.",
 };
