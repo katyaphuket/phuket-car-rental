@@ -1,0 +1,34 @@
+{
+  "season": {
+    "start": "11-15",
+    "end": "03-31",
+    "minDays": 3,
+    "offSeasonMinDays": 1
+  },
+  "minDaysGroups": {
+    "kata": { "economy": 1, "economy_plus": 1, "comfort": 1, "cabrio": 1, "premium": 1 },
+    "near": { "economy": 3, "economy_plus": 3, "comfort": 1, "cabrio": 1, "premium": 1 },
+    "mid": { "economy": 5, "economy_plus": 5, "comfort": 3, "cabrio": 1, "premium": 1 },
+    "far": { "economy": 7, "economy_plus": 7, "comfort": 5, "cabrio": 1, "premium": 1 }
+  },
+  "zones": [
+    { "id": "kata", "name": { "ru": "Ката (офис)", "en": "Kata (office)" }, "price": 0, "popular": true, "minDaysGroup": "kata" },
+    { "id": "karon", "name": { "ru": "Карон", "en": "Karon" }, "price": 150, "popular": true, "minDaysGroup": "near" },
+    { "id": "kata_noi", "name": { "ru": "Ката Нои", "en": "Kata Noi" }, "price": 150, "minDaysGroup": "near" },
+    { "id": "chalong", "name": { "ru": "Чалонг", "en": "Chalong" }, "price": 300, "minDaysGroup": "near" },
+    { "id": "rawai", "name": { "ru": "Раваи", "en": "Rawai" }, "price": 300, "minDaysGroup": "near" },
+    { "id": "patong", "name": { "ru": "Патонг", "en": "Patong" }, "price": 600, "popular": true, "minDaysGroup": "mid" },
+    { "id": "kathu", "name": { "ru": "Кату", "en": "Kathu" }, "price": 600, "minDaysGroup": "mid" },
+    { "id": "phuket_town", "name": { "ru": "Пхукет Таун", "en": "Phuket Town" }, "price": 700, "minDaysGroup": "mid" },
+    { "id": "panwa", "name": { "ru": "Панва", "en": "Panwa" }, "price": 700, "minDaysGroup": "mid" },
+    { "id": "rassada", "name": { "ru": "Рассада", "en": "Rassada" }, "price": 700, "minDaysGroup": "mid" },
+    { "id": "kamala", "name": { "ru": "Камала", "en": "Kamala" }, "price": 700, "minDaysGroup": "mid" },
+    { "id": "bangtao", "name": { "ru": "Бангтао", "en": "Bang Tao" }, "price": 1000, "popular": true, "minDaysGroup": "far" },
+    { "id": "surin", "name": { "ru": "Сурин", "en": "Surin" }, "price": 1000, "minDaysGroup": "far" },
+    { "id": "thalang", "name": { "ru": "Таланг", "en": "Thalang" }, "price": 1000, "minDaysGroup": "far" },
+    { "id": "naithon", "name": { "ru": "Найтон", "en": "Naithon" }, "price": 1000, "minDaysGroup": "far" },
+    { "id": "nai_yang", "name": { "ru": "Найянг", "en": "Nai Yang" }, "price": 1000, "minDaysGroup": "far" },
+    { "id": "airport", "name": { "ru": "Аэропорт HKT", "en": "HKT Airport" }, "price": 1000, "popular": true, "minDaysGroup": "far" },
+    { "id": "mai_khao", "name": { "ru": "Май Кхао", "en": "Mai Khao" }, "price": 1200, "minDaysGroup": "far" }
+  ]
+}
