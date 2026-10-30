@@ -45,7 +45,22 @@ export function getGlobalMinDays(startDate: Date): number {
   return inSeason ? minDays : offSeasonMinDays;
 }
 
+// Минимальный срок для всех машин круглый год, даже из офиса; кроме машин из exemptCarIds
+// (кабриолеты, BMW 330) — их можно брать на короткий срок, и в сезон тоже
+export const SHORT_RENTAL_MIN_DAYS = delivery.shortRental.minDays;
+const SHORT_RENTAL_EXEMPT_IDS = new Set<number>(delivery.shortRental.exemptCarIds);
+
+export function isShortRentalCar(carId: number): boolean {
+  return SHORT_RENTAL_EXEMPT_IDS.has(carId);
+}
+
+function getCarMinDays(carId: number, startDate: Date): number {
+  if (isShortRentalCar(carId)) return 1;
+  return Math.max(SHORT_RENTAL_MIN_DAYS, getGlobalMinDays(startDate));
+}
+
 export function canDeliver(
+  carId: number,
   carName: string,
   zoneId: string,
   days: number,
@@ -55,12 +70,9 @@ export function canDeliver(
   const zone = ZONES.find((z) => z.id === zoneId);
   if (!zone) return { available: false, reason: "Район не найден" };
 
-  const globalMin = getGlobalMinDays(startDate);
-  if (days < globalMin) {
-    return {
-      available: false,
-      reason: `С 15 ноября минимальный срок аренды — ${globalMin} дня`,
-    };
+  const carMin = getCarMinDays(carId, startDate);
+  if (days < carMin) {
+    return { available: false, reason: `Минимальный срок аренды — ${carMin} дня` };
   }
 
   const zoneMin = zone.minDays[carClass];
@@ -74,10 +86,10 @@ export function canDeliver(
   return { available: true };
 }
 
-export function getRequiredDays(carName: string, zoneId: string, startDate: Date): number {
+export function getRequiredDays(carId: number, carName: string, zoneId: string, startDate: Date): number {
   const carClass = getCarClass(carName);
   const zone = ZONES.find((z) => z.id === zoneId);
-  const globalMin = getGlobalMinDays(startDate);
-  if (!zone) return globalMin;
-  return Math.max(globalMin, zone.minDays[carClass]);
+  const carMin = getCarMinDays(carId, startDate);
+  if (!zone) return carMin;
+  return Math.max(carMin, zone.minDays[carClass]);
 }

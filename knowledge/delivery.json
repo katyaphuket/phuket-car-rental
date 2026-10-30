@@ -5,6 +5,10 @@
     "minDays": 3,
     "offSeasonMinDays": 1
   },
+  "shortRental": {
+    "minDays": 3,
+    "exemptCarIds": [43533, 43534, 43535, 80126]
+  },
   "minDaysGroups": {
     "kata": { "economy": 1, "economy_plus": 1, "comfort": 1, "cabrio": 1, "premium": 1 },
     "near": { "economy": 3, "economy_plus": 3, "comfort": 1, "cabrio": 1, "premium": 1 },

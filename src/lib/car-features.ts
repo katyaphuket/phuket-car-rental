@@ -7,7 +7,7 @@ export type Feature = {
   label: string; // подпись
 };
 
-export type CarClass = "Эконом" | "Эконом+" | "Эконом Top" | "Кроссовер" | "Пикап" | "Премиум" | "Кабриолет" | "Родстер";
+export type CarClass = "Эконом" | "Эконом+" | "Эконом Top" | "Комфорт" | "Кроссовер" | "Пикап" | "Премиум" | "Кабриолет" | "Родстер";
 
 export type CarFeatures = {
   displayName: string; // отображаемое название машины (вместо car_name из RentProg)

@@ -986,7 +986,7 @@
     },
     "58564": {
       "displayName": "Toyota Yaris Sport",
-      "carClass": "Эконом",
+      "carClass": "Эконом+",
       "year": 2024,
       "description": "Хэтчбек 2024 года в новом кузове. Кожаный салон, Bluetooth и CarPlay, камера заднего вида и бесключевой доступ.",
       "bodyType": "хэтчбек",
@@ -1014,7 +1014,7 @@
     },
     "83080": {
       "displayName": "Honda City Hatchback",
-      "carClass": "Эконом",
+      "carClass": "Эконом Top",
       "year": 2024,
       "description": "Хэтчбек 2024 года с турбомотором — бодрый и экономичный. Ассистенты водителя, CarPlay, камера заднего вида и парктроники.",
       "bodyType": "хэтчбек",
@@ -1042,7 +1042,7 @@
     },
     "83190": {
       "displayName": "MG5 Pro",
-      "carClass": "Эконом",
+      "carClass": "Комфорт",
       "year": 2025,
       "description": "Новый спортивный седан 2025 года. Камеры 360°, кожаный салон, CarPlay и климат-контроль.",
       "bodyType": "седан",

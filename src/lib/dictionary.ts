@@ -52,6 +52,7 @@ export type Dictionary = {
     returnFee: string;
     totalWithDelivery: string;
     deliveryUnavailable: (n: number) => string;
+    shortRentalHint: (n: number) => string;
     pickupFromOffice: string;
     filterLabel: string;
     filterClassSection: string;
@@ -247,6 +248,7 @@ export const dictionary: Record<Locale, Dictionary> = {
       returnFee: "Возврат",
       totalWithDelivery: "Итого с доставкой",
       deliveryUnavailable: (n: number) => `Доставка недоступна · минимум ${n} дней для этого района`,
+      shortRentalHint: (n: number) => `Хотите больше вариантов? Увеличьте срок аренды — от ${n} дней доступны все автомобили.`,
       pickupFromOffice: "Самовывоз из офиса",
       filterLabel: "Фильтр",
       filterClassSection: "Класс автомобиля",
@@ -542,6 +544,7 @@ export const dictionary: Record<Locale, Dictionary> = {
       returnFee: "Return",
       totalWithDelivery: "Total with delivery",
       deliveryUnavailable: (n: number) => `Delivery unavailable · minimum ${n} days for this zone`,
+      shortRentalHint: (n: number) => `Want more options? Rent for ${n} days or more to see the whole fleet.`,
       pickupFromOffice: "Pick up from the office",
       filterLabel: "Filter",
       filterClassSection: "Car class",
