@@ -3,7 +3,7 @@ import { fetchCarData, fetchFreeCars } from "@/lib/rentprog";
 import { mapRentProgCar, type Car } from "@/lib/cars";
 import { CAR_PRIORITY } from "@/lib/car-priority";
 
-const CONCURRENCY_LIMIT = 2;
+const CONCURRENCY_LIMIT = 5;
 
 async function mapWithConcurrency<T, R>(
   items: T[],

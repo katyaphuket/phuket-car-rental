@@ -5,7 +5,7 @@ import { useLocale } from "@/lib/locale-context";
 import type { Car, Delivery } from "@/lib/cars";
 import { getCarFeatures } from "@/lib/car-features";
 import { CAR_PRIORITY } from "@/lib/car-priority";
-import { canDeliver, getRequiredDays, ZONES } from "@/lib/delivery-rules";
+import { canDeliver, getRequiredDays, isShortRentalCar, SHORT_RENTAL_MIN_DAYS, ZONES } from "@/lib/delivery-rules";
 import { CarCard } from "./car-card";
 import { CarModal } from "./car-modal";
 import {
@@ -21,7 +21,7 @@ import { RuAccessBanner, RuAccessFallback, useLooksLikeRuUser } from "./ru-acces
 function matchesFilters(car: Car, filters: FleetFiltersState, totalPrice: number) {
   if (filters.classes.length > 0) {
     const { carClass, seats } = getCarFeatures(Number(car.id), car.name);
-    const carGroup = carClass === "Эконом" || carClass === "Эконом+" || carClass === "Эконом Top" ? "Эконом" : carClass;
+    const carGroup = carClass === "Эконом" || carClass === "Эконом+" || carClass === "Эконом Top" || carClass === "Комфорт" ? "Эконом" : carClass;
     const seatsMatch = filters.classes.includes("seats7") && seats === 7;
     const classMatch = (filters.classes as string[]).includes(carGroup);
     if (!seatsMatch && !classMatch) return false;
@@ -44,6 +44,7 @@ function getPriority(car: Car) {
 
 const SKELETON_COUNT = 3;
 const FETCH_TIMEOUT_MS = 4500;
+const LIST_TIMEOUT_MS = 30000;
 
 function formatRentProgDate(date: Date) {
   const day = String(date.getDate()).padStart(2, "0");
@@ -122,8 +123,17 @@ export function CarsSection({
       days: String(days),
     });
 
+    // RentProg can take 10+ s when many cars are free, so the list itself gets a long
+    // timeout. Blocked users are still caught fast: a request without params returns 400
+    // instantly without touching RentProg, and if even that fails we abort the list.
+    const listController = new AbortController();
+    const listTimeout = setTimeout(() => listController.abort(), LIST_TIMEOUT_MS);
+    fetch("/api/cars", { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), cache: "no-store" }).catch(() =>
+      listController.abort()
+    );
+
     try {
-      const res = await fetch(`/api/cars?${params.toString()}`, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+      const res = await fetch(`/api/cars?${params.toString()}`, { signal: listController.signal });
       if (!res.ok) throw new Error("request failed");
       const data: Car[] = await res.json();
       setCars(data);
@@ -132,6 +142,7 @@ export function CarsSection({
       setError(true);
       setCars(null);
     } finally {
+      clearTimeout(listTimeout);
       setLoading(false);
     }
   }
@@ -153,12 +164,13 @@ export function CarsSection({
   const returnZone = ZONES.find((zone) => zone.id === returnZoneId) ?? ZONES[0];
 
   function getDelivery(car: Car) {
-    const pickupCheck = canDeliver(car.name, pickupZone.id, days, range.start);
-    const returnCheck = canDeliver(car.name, returnZone.id, days, range.start);
+    const carId = Number(car.id);
+    const pickupCheck = canDeliver(carId, car.name, pickupZone.id, days, range.start);
+    const returnCheck = canDeliver(carId, car.name, returnZone.id, days, range.start);
     const available = pickupCheck.available && returnCheck.available;
     const requiredDays = Math.max(
-      getRequiredDays(car.name, pickupZone.id, range.start),
-      getRequiredDays(car.name, returnZone.id, range.start)
+      getRequiredDays(carId, car.name, pickupZone.id, range.start),
+      getRequiredDays(carId, car.name, returnZone.id, range.start)
     );
 
     return {
@@ -169,8 +181,12 @@ export function CarsSection({
     };
   }
 
-  const filteredCars = cars
-    ? cars.filter((car) => matchesFilters(car, filters, getTotalPrice(car, getDelivery(car))))
+  // На короткий срок показываем только машины, которые можно взять меньше чем на SHORT_RENTAL_MIN_DAYS
+  const isShortRental = days < SHORT_RENTAL_MIN_DAYS;
+  const rentableCars = cars && isShortRental ? cars.filter((car) => isShortRentalCar(Number(car.id))) : cars;
+
+  const filteredCars = rentableCars
+    ? rentableCars.filter((car) => matchesFilters(car, filters, getTotalPrice(car, getDelivery(car))))
     : null;
   const sortedCars = filteredCars
     ? [...filteredCars].sort((a, b) => {
@@ -217,11 +233,17 @@ export function CarsSection({
 
       {!loading && error && <RuAccessFallback onRetry={() => loadCars(range)} />}
 
+      {!loading && !error && isShortRental && cars && cars.length > 0 && (
+        <p className="mb-6 rounded-xl bg-surface-muted px-4 py-3 text-center text-sm text-foreground-muted">
+          {t.fleet.shortRentalHint(SHORT_RENTAL_MIN_DAYS)}
+        </p>
+      )}
+
       {!loading && !error && cars && cars.length === 0 && (
         <p className="py-10 text-center text-sm text-foreground-muted">{t.fleet.empty}</p>
       )}
 
-      {!loading && !error && cars && cars.length > 0 && filteredCars && filteredCars.length === 0 && (
+      {!loading && !error && rentableCars && rentableCars.length > 0 && filteredCars && filteredCars.length === 0 && (
         <div className="flex flex-col items-center gap-3 py-10 text-center">
           <p className="text-sm text-foreground-muted">{t.fleet.noResultsFiltered}</p>
           <button
