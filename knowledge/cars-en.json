@@ -98,7 +98,9 @@
     "M-пакет": "M Package",
     "Кабриолет": "Convertible",
     "AMG · Кабриолет": "AMG · Convertible",
-    "Электро · Родстер": "Electric · Roadster"
+    "Электро · Родстер": "Electric · Roadster",
+    "Новый 2024": "New 2024",
+    "Новый · 360°": "New · 360°"
   },
   "description": {
     "Компактный и максимально экономичный хэтчбек — идеальный вариант для бюджетных поездок по Пхукету. Лёгкий в управлении, манёвренный.": "A compact and ultra-efficient hatchback — ideal for budget trips around Phuket. Easy to drive and nimble.",
@@ -130,7 +132,10 @@
     "Универсальный кроссовер с панорамной крышей — комфорт для поездок по Пхукету. Просторный, удобный и хорошо оснащённый.": "A versatile crossover with a panoramic roof — comfort for trips around Phuket. Roomy, convenient, and well-equipped.",
     "Надёжный автомобиль для комфортных поездок по Пхукету.": "A reliable car for comfortable trips around Phuket.",
     "Премиальный кроссовер с турбированным двигателем и комфортом бизнес-класса. Идеально подходит для путешествий по Пхукету — мягкая подвеска, уверенная динамика и высокий уровень безопасности.": "A premium crossover with a turbocharged engine and business-class comfort. Perfect for travelling around Phuket — soft suspension, confident dynamics, and a high level of safety.",
-    "Футуристичный электрический родстер с ярким дизайном и дверями в стиле «крыло-ножницы». Двухместный салон, мгновенный разгон и открытая крыша делают MG Cyberster идеальным автомобилем для эффектных поездок по Пхукету.": "A futuristic electric roadster with a striking design and scissor-wing doors. A two-seat cabin, instant acceleration, and an open roof make the MG Cyberster the perfect car for unforgettable rides around Phuket."
+    "Футуристичный электрический родстер с ярким дизайном и дверями в стиле «крыло-ножницы». Двухместный салон, мгновенный разгон и открытая крыша делают MG Cyberster идеальным автомобилем для эффектных поездок по Пхукету.": "A futuristic electric roadster with a striking design and scissor-wing doors. A two-seat cabin, instant acceleration, and an open roof make the MG Cyberster the perfect car for unforgettable rides around Phuket.",
+    "Новый спортивный седан 2025 года с минимальным пробегом. Кожаный салон, большой экран с CarPlay и камеры 360°.": "A new 2025 sporty sedan with minimal mileage. Leather interior, large CarPlay screen and 360° cameras.",
+    "Новый хэтчбек 2025 года с турбомотором — бодрый, экономичный и вместительный. Кожаный салон, сенсорный экран и камера заднего вида.": "A new 2025 turbocharged hatchback — lively, fuel-efficient and roomy. Leather interior, touchscreen and rear-view camera.",
+    "Новый хэтчбек 2024 года в обновлённом дизайне. Экономичный и манёвренный, с кожаным салоном, климат-контролем и камерой заднего вида.": "A new 2024 hatchback with the updated design. Fuel-efficient and nimble, with leather interior, climate control and a rear-view camera."
   },
   "transmission": {
     "Автомат": "Automatic",
