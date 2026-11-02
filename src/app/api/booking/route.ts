@@ -1,42 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
-
-type BookingPayload = {
-  carName: string;
-  carClass: string;
-  transmission: string;
-  pickupZoneName: string;
-  pickupDateTime: string;
-  returnZoneName: string;
-  returnDateTime: string;
-  days: number;
-  name: string;
-  phone: string;
-  messenger: string;
-  comment: string;
-  childSeat: boolean;
-  booster: boolean;
-  phoneHolder: boolean;
-  rent: number;
-  pickupFee: number;
-  returnFee: number;
-  washFee: number;
-  total: number;
-  deposit: number;
-};
-
-function money(value: number) {
-  return `${value.toLocaleString("ru-RU")} ฿`;
-}
-
-function yesNo(value: boolean) {
-  return value ? "Да" : "Нет";
-}
-
-function mileageLabel(days: number) {
-  if (days >= 5) return "Без ограничений";
-  return `120 км/сутки, итого ${days * 120} км`;
-}
+import { createAmoLead, isAmoConfigured } from "@/lib/amocrm";
+import { type BookingPayload, mileageLabel, money, yesNo } from "@/lib/booking";
 
 function buildEmailHtml(data: BookingPayload) {
   return `
@@ -77,6 +42,36 @@ function buildEmailHtml(data: BookingPayload) {
   `;
 }
 
+async function sendBookingEmail(data: BookingPayload, crmFailed: boolean) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const contactEmail = process.env.CONTACT_EMAIL;
+
+  if (!apiKey || !contactEmail) {
+    console.error("Booking email not sent: RESEND_API_KEY or CONTACT_EMAIL is not configured");
+    return false;
+  }
+
+  try {
+    const resend = new Resend(apiKey);
+    // Resend reports API errors in the result instead of throwing.
+    const { error } = await resend.emails.send({
+      from: "Phuket Car Rental <onboarding@resend.dev>",
+      to: contactEmail,
+      subject: `${crmFailed ? "[НЕ ПОПАЛА В AMOCRM] " : ""}Новая заявка — ${data.name} — ${data.carName} — ${data.pickupDateTime}`,
+      html: buildEmailHtml(data),
+    });
+
+    if (error) {
+      console.error("Resend booking email failed:", error);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Resend booking email failed:", error);
+    return false;
+  }
+}
+
 export async function POST(request: NextRequest) {
   const data = (await request.json()) as BookingPayload;
 
@@ -84,26 +79,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "name and phone are required" }, { status: 400 });
   }
 
-  const apiKey = process.env.RESEND_API_KEY;
-  const contactEmail = process.env.CONTACT_EMAIL;
-
-  if (!apiKey || !contactEmail) {
-    console.error("Booking email not sent: RESEND_API_KEY or CONTACT_EMAIL is not configured");
-    return NextResponse.json({ error: "Email is not configured" }, { status: 500 });
+  let savedToCrm = false;
+  let crmFailed = false;
+  if (isAmoConfigured()) {
+    try {
+      await createAmoLead(data);
+      savedToCrm = true;
+    } catch (error) {
+      console.error("amoCRM booking failed:", error);
+      crmFailed = true;
+    }
   }
 
-  try {
-    const resend = new Resend(apiKey);
-    await resend.emails.send({
-      from: "Phuket Car Rental <onboarding@resend.dev>",
-      to: contactEmail,
-      subject: `Новая заявка — ${data.name} — ${data.carName} — ${data.pickupDateTime}`,
-      html: buildEmailHtml(data),
-    });
+  const emailSent = await sendBookingEmail(data, crmFailed);
 
+  // The client only needs one copy of the lead to have reached the company.
+  if (savedToCrm || emailSent) {
     return NextResponse.json({ ok: true });
-  } catch (error) {
-    console.error("Resend booking email failed:", error);
-    return NextResponse.json({ error: "Failed to send email" }, { status: 502 });
   }
+  return NextResponse.json({ error: "Failed to save booking" }, { status: 502 });
 }
