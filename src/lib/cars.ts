@@ -3,6 +3,7 @@ import type { RentProgCarData, RentProgFreeCar } from "./rentprog";
 export type Car = {
   id: string;
   name: string;
+  number?: string;
   classKey: "economy" | "crossover" | "premium";
   pricePerDayThb: number;
   pricePerPeriodThb: number;
@@ -36,6 +37,7 @@ export function mapRentProgCar(free: RentProgFreeCar, data: RentProgCarData, day
   return {
     id: String(free.id),
     name,
+    number: data.number?.trim() || undefined,
     classKey: mapClassKey(data.car_class, name),
     pricePerDayThb: data.selected_price,
     pricePerPeriodThb: data.selected_price * Math.max(days, 1),

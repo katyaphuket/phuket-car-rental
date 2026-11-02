@@ -13,7 +13,7 @@ import { PhotoPlaceholder } from "./photo-placeholder";
 const WASH_FEE = 400;
 const MAX_PHOTOS = 6;
 const WHATSAPP_NUMBER = "66839852000";
-const FETCH_TIMEOUT_MS = 6000;
+const FETCH_TIMEOUT_MS = 10000;
 
 type CarModalProps = {
   car: Car;
@@ -183,11 +183,15 @@ export function CarModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          carId: car.id,
+          carNumber: car.number,
           carName: car.name,
           carClass: t.cars[car.classKey],
           transmission: transmissionLabel,
+          pickupZoneId: pickupZone.id,
           pickupZoneName: pickupZone.name[locale],
           pickupDateTime: formatDateTime(range.start),
+          returnZoneId: returnZone.id,
           returnZoneName: returnZone.name[locale],
           returnDateTime: formatDateTime(range.end),
           days,

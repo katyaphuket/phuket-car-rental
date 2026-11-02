@@ -1,7 +1,64 @@
+import { after } from "next/server";
 import { type BookingPayload, mileageLabel, money, yesNo } from "@/lib/booking";
 
-// The booking form gives up after 6 seconds, and the email still has to go out after this.
-const AMO_TIMEOUT_MS = 4000;
+// amoCRM takes 1-3 seconds per request. The booking form gives up after 10 seconds,
+// and the email still has to go out after this.
+const AMO_TIMEOUT_MS = 7000;
+const AMO_FOLLOW_UP_TIMEOUT_MS = 20000;
+const CAR_OPTIONS_TTL_MS = 10 * 60 * 1000;
+
+// Lead field ids from the KataCars amoCRM account.
+const FIELD = {
+  car: 1734239,
+  startDate: 1734217,
+  endDate: 1734219,
+  days: 1734225,
+  pricePerDay: 1734227,
+  pickupMethod: 1734221,
+  pickupDistrict: 1734241,
+  pickupLocation: 1734223,
+  pickupFee: 1734229,
+  returnLocation: 1734251,
+  returnFee: 1734253,
+  wash: 1734377,
+  deposit: 1734255,
+  comment: 1734379,
+};
+
+const OFFICE_ZONE_ID = "kata";
+const TEXT_FIELD_LIMIT = 256;
+const PHUKET_UTC_OFFSET_HOURS = 7;
+
+// Site zone id -> "Район получения" option in amoCRM. Kata Noi has no option of its own.
+const DISTRICT_BY_ZONE: Record<string, string> = {
+  kata: "Office (Kata)",
+  kata_noi: "Kata",
+  karon: "Karon",
+  chalong: "Chalong",
+  rawai: "Rawai",
+  patong: "Patong",
+  kathu: "Kathu",
+  phuket_town: "Phuket Town",
+  panwa: "Panwa",
+  rassada: "Rassada",
+  kamala: "Kamala",
+  bangtao: "BangTao",
+  surin: "Surin",
+  thalang: "Thalang",
+  naithon: "NaiThon",
+  nai_yang: "NaiYang",
+  airport: "Airport",
+  mai_khao: "MaiKhao",
+};
+
+// RentProg car id -> "Авто" option, for cars that can't be matched by plate number.
+const CAR_OPTION_BY_ID: Record<string, string> = {
+  "70260": "Mazda2 brown #8050 (Эконом)",
+  "83190": "MG5PRO black (Комфорт)",
+  "68767": "Mitsubishi Mirage",
+  "74245": "Toyota Yaris Cross (Комфорт)",
+  "76383": "Toyota Veloz (Комфорт, 7 мест)",
+};
 
 type AmoPhoneField = {
   field_code?: string | null;
@@ -63,11 +120,76 @@ async function findContactIdByPhone(phone: string, signal: AbortSignal) {
   return match?.id ?? null;
 }
 
+let cachedCarOptions: { values: string[]; expiresAt: number } | null = null;
+
+async function getCarOptions(signal: AbortSignal) {
+  if (cachedCarOptions && cachedCarOptions.expiresAt > Date.now()) {
+    return cachedCarOptions.values;
+  }
+  const res = await amoFetch(`leads/custom_fields/${FIELD.car}`, signal);
+  const field: { enums?: { value: string }[] | null } = await res.json();
+  const values = (field.enums ?? []).map((option) => option.value);
+  cachedCarOptions = { values, expiresAt: Date.now() + CAR_OPTIONS_TTL_MS };
+  return values;
+}
+
+function findOptionByNumber(options: string[], number: string | undefined) {
+  const digits = number?.replace(/\D/g, "");
+  if (!digits) return undefined;
+  const pattern = new RegExp(`(?<!\\d)${digits}(?!\\d)`);
+  const matches = options.filter((option) => pattern.test(option));
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
+// Options change as the fleet changes, so a new option with the plate number is found on its own.
+function findCarOption(options: string[], data: BookingPayload) {
+  const fromTable = data.carId ? CAR_OPTION_BY_ID[data.carId] : undefined;
+  if (fromTable && options.includes(fromTable)) return fromTable;
+
+  const numberInName = data.carName.match(/#(\d+)/)?.[1];
+  return (
+    findOptionByNumber(options, data.carNumber) ??
+    findOptionByNumber(options, numberInName) ??
+    options.find((option) => option.trim() === data.carName.trim())
+  );
+}
+
+// The site sends the date as picked on the form, which is Phuket time.
+function toTimestamp(value: string) {
+  const match = value.match(/^(\d{2})\.(\d{2})\.(\d{4}) (\d{1,2}):(\d{2})$/);
+  if (!match) return undefined;
+  const [day, month, year, hours, minutes] = match.slice(1).map(Number);
+  return Date.UTC(year, month - 1, day, hours - PHUKET_UTC_OFFSET_HOURS, minutes) / 1000;
+}
+
+function buildCustomFields(data: BookingPayload) {
+  const fields: { field_id: number; values: { value: string | number }[] }[] = [];
+  const add = (fieldId: number, value: string | number | undefined) => {
+    if (value !== undefined && value !== "") fields.push({ field_id: fieldId, values: [{ value }] });
+  };
+
+  add(FIELD.startDate, toTimestamp(data.pickupDateTime));
+  add(FIELD.endDate, toTimestamp(data.returnDateTime));
+  add(FIELD.days, data.days);
+  add(FIELD.pricePerDay, data.days > 0 ? Math.round(data.rent / data.days) : undefined);
+  add(FIELD.pickupMethod, data.pickupZoneId === OFFICE_ZONE_ID ? "Самовывоз" : data.pickupZoneId && "Доставка");
+  add(FIELD.pickupDistrict, data.pickupZoneId ? DISTRICT_BY_ZONE[data.pickupZoneId] : undefined);
+  add(FIELD.pickupLocation, data.pickupZoneName?.slice(0, TEXT_FIELD_LIMIT));
+  add(FIELD.pickupFee, data.pickupFee);
+  add(FIELD.returnLocation, data.returnZoneName?.slice(0, TEXT_FIELD_LIMIT));
+  add(FIELD.returnFee, data.returnFee);
+  add(FIELD.wash, data.washFee);
+  add(FIELD.deposit, data.deposit);
+  add(FIELD.comment, data.comment?.trim().slice(0, TEXT_FIELD_LIMIT));
+  return fields;
+}
+
 function buildNoteText(data: BookingPayload) {
   return [
     "ЗАЯВКА С САЙТА",
     "",
     `Машина: ${data.carName} (${data.carClass}, ${data.transmission})`,
+    `Номер машины: ${data.carNumber || "не указан в RentProg"}`,
     `Получение: ${data.pickupZoneName} · ${data.pickupDateTime}`,
     `Возврат: ${data.returnZoneName} · ${data.returnDateTime}`,
     `Срок: ${data.days} дней`,
@@ -109,26 +231,53 @@ export async function createAmoLead(data: BookingPayload) {
         ],
       };
 
-  const res = await amoFetch("leads/complex", signal, {
-    method: "POST",
-    body: JSON.stringify([
-      {
-        name: `${data.name} — ${data.carName} — ${data.pickupDateTime}`,
-        price: Math.round(data.total),
-        pipeline_id: optionalNumber(process.env.AMOCRM_PIPELINE_ID),
-        status_id: optionalNumber(process.env.AMOCRM_STATUS_ID),
-        tags_to_add: [{ name: "Сайт" }],
-        _embedded: { contacts: [contact] },
-      },
-    ]),
+  const postLead = (customFields?: ReturnType<typeof buildCustomFields>) =>
+    amoFetch("leads/complex", signal, {
+      method: "POST",
+      body: JSON.stringify([
+        {
+          name: `${data.name} — ${data.carName} — ${data.pickupDateTime}`,
+          price: Math.round(data.total),
+          pipeline_id: optionalNumber(process.env.AMOCRM_PIPELINE_ID),
+          status_id: optionalNumber(process.env.AMOCRM_STATUS_ID),
+          tags_to_add: [{ name: "Сайт" }],
+          custom_fields_values: customFields,
+          _embedded: { contacts: [contact] },
+        },
+      ]),
+    });
+
+  // A renamed option or deleted field must not lose the lead: retry without the extra fields.
+  const res = await postLead(buildCustomFields(data)).catch((error) => {
+    console.error("amoCRM lead with fields failed, retrying without them:", error);
+    return postLead();
   });
   const [lead]: { id: number }[] = await res.json();
 
-  // The lead already exists and the email carries the same details, so don't fail here.
-  await amoFetch(`leads/${lead.id}/notes`, signal, {
+  // The slow part runs after the client has its answer. The lead already exists
+  // and the email carries the same details, so a failure here only gets logged.
+  after(() =>
+    completeLead(lead.id, data).catch((error) => {
+      console.error("amoCRM lead follow-up failed:", error);
+    })
+  );
+}
+
+async function completeLead(leadId: number, data: BookingPayload) {
+  const signal = AbortSignal.timeout(AMO_FOLLOW_UP_TIMEOUT_MS);
+
+  await amoFetch(`leads/${leadId}/notes`, signal, {
     method: "POST",
     body: JSON.stringify([{ note_type: "common", params: { text: buildNoteText(data) } }]),
-  }).catch((error) => {
-    console.error("amoCRM note failed:", error);
+  });
+
+  const carOption = findCarOption(await getCarOptions(signal), data);
+  if (!carOption) return;
+
+  await amoFetch(`leads/${leadId}`, signal, {
+    method: "PATCH",
+    body: JSON.stringify({
+      custom_fields_values: [{ field_id: FIELD.car, values: [{ value: carOption }] }],
+    }),
   });
 }

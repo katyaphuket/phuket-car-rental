@@ -1,9 +1,13 @@
 export type BookingPayload = {
+  carId?: string;
+  carNumber?: string;
   carName: string;
   carClass: string;
   transmission: string;
+  pickupZoneId?: string;
   pickupZoneName: string;
   pickupDateTime: string;
+  returnZoneId?: string;
   returnZoneName: string;
   returnDateTime: string;
   days: number;

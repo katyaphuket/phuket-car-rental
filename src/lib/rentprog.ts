@@ -10,6 +10,7 @@ export type RentProgFreeCar = {
 
 export type RentProgCarData = {
   car_name: string;
+  number?: string | null;
   car_class: string | null;
   transmission: string | null;
   selected_price: number;
