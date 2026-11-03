@@ -1,15 +1,14 @@
 import { amoFetch, FIELD } from "@/lib/amocrm";
 import { money } from "@/lib/booking";
 
-const AMO_TIMEOUT_MS = 45000;
+const AMO_TIMEOUT_MS = 20000;
 const TELEGRAM_TIMEOUT_MS = 10000;
 const NOTIFY_TAG = "Сайт";
 
 // The old site (katacars.info) emails its leads, and amoCRM turns them into "Неразобранное".
 const UNSORTED_STATUS_ID = 26442328;
 const OLD_SITE_MAIL_FROM = "help@katacars.info";
-const MAIL_LOOKUP_ATTEMPTS = 4;
-const MAIL_LOOKUP_DELAY_MS = 5000;
+const NOTIFIED_TAG = "Бот уведомил";
 const OLD_SITE_LABELS: Record<string, string> = {
   "Имя": "Имя",
   "Телефон": "Телефон",
@@ -47,11 +46,19 @@ export function isLeadNotifyConfigured() {
   return Boolean(process.env.AMO_NOTIFY_TELEGRAM_TOKEN && process.env.AMO_NOTIFY_TELEGRAM_CHAT_ID);
 }
 
-// amoCRM posts a form with keys like leads[add][0][id].
+// amoCRM posts a form with keys like leads[add][0][id]. It stays silent when a mail lands in
+// "Неразобранное", so those leads are caught by the update that follows about 25 seconds later.
 export function newLeadIds(form: FormData) {
-  return [...form.entries()]
+  const added = [...form.entries()]
     .filter(([key]) => /^leads\[add\]\[\d+\]\[id\]$/.test(key))
     .map(([, value]) => String(value));
+
+  const updatedUnsorted = [...form.entries()]
+    .filter(([key]) => /^leads\[update\]\[\d+\]\[id\]$/.test(key))
+    .filter(([key]) => form.get(key.replace("[id]", "[status_id]")) === String(UNSORTED_STATUS_ID))
+    .map(([, value]) => String(value));
+
+  return [...added, ...updatedUnsorted];
 }
 
 function fieldValue(fields: AmoFieldValue[] | null | undefined, fieldId: number) {
@@ -100,21 +107,14 @@ function leadUrl(leadId: number) {
   return `${process.env.AMOCRM_BASE_URL?.replace(/\/+$/, "")}/leads/detail/${leadId}`;
 }
 
-// amoCRM may add the lead a moment before its "Неразобранное" entry can be read.
 async function findMail(leadId: number, signal: AbortSignal) {
-  for (let attempt = 0; attempt < MAIL_LOOKUP_ATTEMPTS; attempt++) {
-    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, MAIL_LOOKUP_DELAY_MS));
+  const res = await amoFetch("leads/unsorted?filter[category][]=mail&limit=50", signal);
+  if (res.status === 204) return undefined;
 
-    const res = await amoFetch("leads/unsorted?filter[category][]=mail&limit=50", signal);
-    if (res.status === 204) continue;
-
-    const body: { _embedded?: { unsorted?: AmoUnsortedMail[] } } = await res.json();
-    const mail = body._embedded?.unsorted?.find((item) =>
-      item._embedded?.leads?.some((lead) => lead.id === leadId)
-    );
-    if (mail) return mail;
-  }
-  return undefined;
+  const body: { _embedded?: { unsorted?: AmoUnsortedMail[] } } = await res.json();
+  return body._embedded?.unsorted?.find((item) =>
+    item._embedded?.leads?.some((lead) => lead.id === leadId)
+  );
 }
 
 function buildOldSiteMessage(leadId: number, summary: string) {
@@ -156,16 +156,39 @@ async function sendToTelegram(text: string) {
   }
 }
 
+const leadsInProgress = new Set<string>();
+
+// One mail brings several updates at once, and the tag is what tells later ones it is done.
+async function notifyOldSiteLead(lead: AmoLead, signal: AbortSignal) {
+  if (lead._embedded?.tags?.some((tag) => tag.name === NOTIFIED_TAG)) return;
+
+  const mail = await findMail(lead.id, signal);
+  if (mail?.metadata?.from?.email !== OLD_SITE_MAIL_FROM) return;
+
+  await amoFetch(`leads/${lead.id}`, signal, {
+    method: "PATCH",
+    body: JSON.stringify({ tags_to_add: [{ name: NOTIFIED_TAG }] }),
+  });
+  await sendToTelegram(buildOldSiteMessage(lead.id, mail.metadata.content_summary ?? ""));
+}
+
 export async function notifyNewLead(leadId: string) {
+  if (leadsInProgress.has(leadId)) return;
+  leadsInProgress.add(leadId);
+  try {
+    await handleNewLead(leadId);
+  } finally {
+    leadsInProgress.delete(leadId);
+  }
+}
+
+async function handleNewLead(leadId: string) {
   const signal = AbortSignal.timeout(AMO_TIMEOUT_MS);
   const res = await amoFetch(`leads/${leadId}?with=contacts`, signal);
   const lead: AmoLead = await res.json();
 
   if (lead.status_id === UNSORTED_STATUS_ID) {
-    const mail = await findMail(lead.id, signal);
-    if (mail?.metadata?.from?.email === OLD_SITE_MAIL_FROM) {
-      await sendToTelegram(buildOldSiteMessage(lead.id, mail.metadata.content_summary ?? ""));
-    }
+    await notifyOldSiteLead(lead, signal);
     return;
   }
 
