@@ -8,7 +8,7 @@ const AMO_FOLLOW_UP_TIMEOUT_MS = 20000;
 const CAR_OPTIONS_TTL_MS = 10 * 60 * 1000;
 
 // Lead field ids from the KataCars amoCRM account.
-const FIELD = {
+export const FIELD = {
   car: 1734239,
   startDate: 1734217,
   endDate: 1734219,
@@ -83,7 +83,7 @@ function optionalNumber(value: string | undefined) {
   return value && Number.isInteger(parsed) ? parsed : undefined;
 }
 
-async function amoFetch(path: string, signal: AbortSignal, init?: RequestInit) {
+export async function amoFetch(path: string, signal: AbortSignal, init?: RequestInit) {
   const baseUrl = process.env.AMOCRM_BASE_URL?.replace(/\/+$/, "");
   const res = await fetch(`${baseUrl}/api/v4/${path}`, {
     ...init,
