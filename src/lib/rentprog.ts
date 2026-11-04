@@ -103,3 +103,37 @@ export function fetchCarData(id: number, startDate: string, endDate: string, day
     days: String(days),
   });
 }
+
+export type RentProgBooking = {
+  id: number;
+  car_name?: string | null;
+  car_code?: string | null;
+  car?: { number?: string | number | null } | null;
+  client?: { phone?: string | null } | null;
+  start_date: string; // "DD-MM-YYYY HH:mm"
+  end_date: string;
+  created_at: string;
+  rental_cost?: number | null;
+  state?: string | null;
+  in_rent?: boolean;
+  failure?: boolean;
+  technical?: boolean;
+  repair?: boolean;
+};
+
+const BOOKINGS_PAGE_SIZE = 100;
+const BOOKINGS_MAX_PAGES = 50;
+
+export async function fetchAllBookings() {
+  const bookings: RentProgBooking[] = [];
+  for (let page = 1; page <= BOOKINGS_MAX_PAGES; page++) {
+    const list = await rentprogGet<RentProgBooking[]>("all_bookings", {
+      per_page: String(BOOKINGS_PAGE_SIZE),
+      page: String(page),
+    });
+    bookings.push(...list);
+    if (list.length < BOOKINGS_PAGE_SIZE) break;
+    await sleep(300);
+  }
+  return bookings;
+}
