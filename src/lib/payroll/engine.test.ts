@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createEngine, type Button, type Store } from "@/lib/payroll/engine";
+import { createEngine, dealIdFromText, type Button, type Store } from "@/lib/payroll/engine";
 import { monthTabCells, monthTabTitle } from "@/lib/payroll/sheets-store";
 import { type Accrual, type AmoLeadRaw, type AmoPairCandidate, type Deal, type Person, type RpBooking, addMonths, findAmoPair, firstMonthlyPayment, isLongRental, nextMonthlyPayment, parseDateRange, parseDay, parseExtension, parseSum, shareFromOptions, uniqueAccruals } from "@/lib/payroll/logic";
 
@@ -589,6 +589,7 @@ function booking(id: number, opts: Partial<RpBooking> = {}): RpBooking {
   return {
     id,
     car: "Yaris Sport #7826",
+    client: "Клиент Тест",
     plate: "7826",
     phone: "812345678",
     start: "2026-12-10",
@@ -603,7 +604,7 @@ function booking(id: number, opts: Partial<RpBooking> = {}): RpBooking {
   };
 }
 
-const pairOf = (leadId: number, opts: Partial<AmoPairCandidate> = {}): AmoPairCandidate => ({ leadId, status: BOOKED, plate: "", phones: [], start: "2026-12-10", ...opts });
+const pairOf = (leadId: number, opts: Partial<AmoPairCandidate> = {}): AmoPairCandidate => ({ leadId, status: BOOKED, plate: "", phones: [], start: "2026-12-10", end: "2026-12-21", car: "", price: 0, ...opts });
 
 describe("сверка с RentProg", () => {
   it("бронь без сделки в amoCRM на следующий день становится заявкой офиса", async () => {
@@ -707,6 +708,34 @@ describe("сверка с RentProg", () => {
     const block = t.messagesTo(OLGA).find((s) => s.text.startsWith("🔑"))!;
     expect(block.text).toContain("только в RentProg");
     expect(block.text).not.toContain("https://amo/-50");
+  });
+
+  it("сделка без телефона и без номера в названии находится по модели (как Мираж)", () => {
+    const b = booking(1, { car: "Mitsubishi Mirage (Эконом)", plate: "5117", phone: "812345678", start: "2026-12-16", end: "2027-01-06", rent: 19950 });
+    const mirage = pairOf(7, { car: "Mitsubishi Mirage", start: "2026-12-16", end: "2027-01-06", price: 19950 });
+    expect(findAmoPair(b, [mirage])?.leadId).toBe(7);
+  });
+
+  it("другая модель той же марки и другой номер парой не считаются", () => {
+    const b = booking(1, { car: "Toyota Yaris Sport", plate: "7826" });
+    expect(findAmoPair(b, [pairOf(1, { car: "Toyota Veloz (Комфорт, 7 мест)" })])).toBeNull();
+    expect(findAmoPair(b, [pairOf(2, { car: "Toyota Yaris white #1885", plate: "1885" })])).toBeNull();
+  });
+
+  it("машину заменили: совпали даты и сумма", () => {
+    const b = booking(1, { car: "MG5PRO", plate: "", start: "2026-11-11", end: "2026-12-03", rent: 24200 });
+    expect(findAmoPair(b, [pairOf(9, { car: "Honda City", start: "2026-11-11", end: "2026-12-03", price: 24200 })])?.leadId).toBe(9);
+    expect(findAmoPair(b, [pairOf(9, { car: "Honda City", start: "2026-11-11", end: "2026-12-03", price: 9000 })])).toBeNull();
+  });
+
+  it("ложная запись офиса снимается сама, когда пара находится", async () => {
+    t.bookings.push(booking(500, { car: "Mitsubishi Mirage (Эконом)", plate: "5117", start: "2026-12-16", end: "2027-01-06" }));
+    await t.evening("2026-12-02");
+    expect(t.deal(-500).state).toBe("booked");
+    t.candidates.push(pairOf(7, { car: "Mitsubishi Mirage", start: "2026-12-16", end: "2027-01-06" }));
+    await t.evening("2026-12-03");
+    expect(t.deal(-500).state).toBe("cancelled");
+    expect(t.deal(-500).note).toContain("amoCRM");
   });
 
   it("поиск пары: телефон важнее, далёкая дата не подходит", () => {
@@ -882,6 +911,259 @@ describe("длинные аренды", () => {
   });
 });
 
+describe("правка заявки владелицей", () => {
+  async function imported(id: number, opts: LeadOptions = {}) {
+    t.clock.day = "2026-12-01";
+    t.amoLeads.set(id, lead(id, opts));
+    await t.engine.importExisting();
+  }
+
+  const lastTo = (chat: number) => t.messagesTo(chat).at(-1)!;
+  const buttonData = (chat: number) => lastTo(chat).buttons?.flat().map((b) => b.data) ?? [];
+
+  it("по ссылке или номеру показывает заявку и кнопки, даже если её не было в сводке", async () => {
+    await imported(1);
+    expect(t.messagesTo(OLGA)).toHaveLength(0);
+
+    await t.say(OWNER_CHAT, "https://katacars.amocrm.ru/leads/detail/1");
+    expect(buttonData(OWNER_CHAT)).toEqual(["om:1", "fs:1", "od:1", "os:1"]);
+    expect(lastTo(OWNER_CHAT).text).toContain("Fortuner");
+    expect(lastTo(OWNER_CHAT).text).toContain("Забронирована");
+  });
+
+  it("менеджер этого не может", async () => {
+    await imported(1);
+    t.sent.length = 0;
+    await t.say(OLGA, "https://katacars.amocrm.ru/leads/detail/1");
+    expect(lastTo(OLGA).buttons).toBeUndefined();
+    await t.press(OLGA, "om:1");
+    await t.press(OLGA, "od:1");
+    await t.press(OLGA, "ost:1:no_show");
+    expect(t.deal(1).state).toBe("booked");
+    expect(t.messagesTo(OLGA).filter((m) => m.forceReply || m.buttons)).toHaveLength(0);
+  });
+
+  it("неизвестная заявка: понятный ответ", async () => {
+    await t.say(OWNER_CHAT, "99999");
+    expect(lastTo(OWNER_CHAT).text).toContain("нет");
+  });
+
+  it("заявка только из RentProg ищется по номеру с минусом", async () => {
+    t.bookings.push(booking(5000));
+    await t.evening("2026-12-02");
+    await t.say(OWNER_CHAT, "-5000");
+    expect(buttonData(OWNER_CHAT)[0]).toBe("om:-5000");
+  });
+
+  it("смена менеджера у уже выданной из запуска заявки переносит деньги", async () => {
+    await imported(1, { start: "2026-11-20", end: "2026-12-03", status: ISSUED });
+    expect(t.totalFor("Ольга")).toBe(600);
+    await t.say(OWNER_CHAT, "1");
+    await t.press(OWNER_CHAT, "om:1");
+    await t.press(OWNER_CHAT, "f:1:n");
+    expect(t.totalFor("Ольга")).toBe(0);
+    expect(t.totalFor("Наталья")).toBe(600);
+  });
+
+  it("сумма до выдачи: без денег сейчас, начисляется при выдаче, amoCRM не перезаписывает", async () => {
+    await imported(1);
+    await t.press(OWNER_CHAT, "fs:1");
+    await t.reply(OWNER_CHAT, "9000");
+    expect(t.accruals).toHaveLength(0);
+    await t.evening("2026-12-05");
+    await t.press(OLGA, "ia:2026-12-05");
+    expect(t.totalFor("Ольга")).toBe(450);
+  });
+
+  it("другие даты: новые вопросы придут по новым датам", async () => {
+    await imported(1);
+    await t.press(OWNER_CHAT, "od:1");
+    await t.reply(OWNER_CHAT, "10.12 14.12");
+    expect(t.deal(1)).toMatchObject({ start: "2026-12-10", end: "2026-12-14", manual: true });
+    await t.evening("2026-12-05");
+    expect(t.deal(1).state).toBe("booked");
+    await t.evening("2026-12-10");
+    expect(t.deal(1).state).toBe("asked_issue");
+  });
+
+  it("другие даты снимают вопрос, если выдача ещё впереди", async () => {
+    t.amoLeads.set(1, lead(1));
+    await t.evening("2026-12-05");
+    expect(t.deal(1).state).toBe("asked_issue");
+    await t.press(OWNER_CHAT, "od:1");
+    await t.reply(OWNER_CHAT, "20.12 25.12");
+    expect(t.deal(1).state).toBe("booked");
+  });
+
+  it("ошибочное «Не приехал»: вернуть в аренду, 5% начисляется сегодняшней датой", async () => {
+    t.amoLeads.set(1, lead(1));
+    await t.evening("2026-12-05");
+    await t.press(OLGA, "i:1:no");
+    expect(t.accruals).toHaveLength(0);
+
+    t.clock.day = "2026-12-06";
+    await t.press(OWNER_CHAT, "os:1");
+    expect(buttonData(OWNER_CHAT)).not.toContain("ost:1:no_show");
+    await t.press(OWNER_CHAT, "ost:1:in_rent");
+    expect(t.deal(1).state).toBe("in_rent");
+    expect(t.totalFor("Ольга")).toBe(600);
+    expect(t.accruals[0].date).toBe("2026-12-06");
+  });
+
+  it("ошибочно выданная: «Не приехал» снимает 5%, потом можно вернуть обратно", async () => {
+    await bookAndIssue(1);
+    expect(t.totalFor("Ольга")).toBe(600);
+    await t.press(OWNER_CHAT, "ost:1:no_show");
+    expect(t.deal(1).state).toBe("no_show");
+    expect(t.totalFor("Ольга")).toBe(0);
+    await t.press(OWNER_CHAT, "ost:1:finished");
+    expect(t.deal(1).state).toBe("finished");
+    expect(t.totalFor("Ольга")).toBe(600);
+  });
+
+  it("смена между «в аренде» и «завершена» деньги не трогает", async () => {
+    await bookAndIssue(1);
+    await t.press(OWNER_CHAT, "ost:1:finished");
+    await t.press(OWNER_CHAT, "ost:1:in_rent");
+    expect(t.totalFor("Ольга")).toBe(600);
+    expect(t.accruals).toHaveLength(1);
+  });
+
+  it("сумма после отмены не начисляет деньги", async () => {
+    await bookAndIssue(1);
+    await t.press(OWNER_CHAT, "ost:1:cancelled");
+    await t.press(OWNER_CHAT, "fs:1");
+    await t.reply(OWNER_CHAT, "5000");
+    expect(t.totalFor("Ольга")).toBe(0);
+  });
+
+  it("помесячная, снятая с аренды: больше не спрашивает оплаты", async () => {
+    t.amoLeads.set(1, lead(1, { start: "2026-12-02", end: "2027-03-02" }));
+    await t.evening("2026-12-02");
+    await t.press(OLGA, "i:1:month");
+    await t.reply(OLGA, "30000");
+    await t.press(OWNER_CHAT, "ost:1:no_show");
+    expect(t.totalFor("Ольга")).toBe(0);
+    await t.evening("2027-01-02");
+    expect(t.deal(1).state).toBe("no_show");
+  });
+
+  it("менеджер получает сообщение о правке", async () => {
+    await bookAndIssue(1);
+    t.sent.length = 0;
+    await t.press(OWNER_CHAT, "ost:1:finished");
+    expect(lastTo(NATALYA).text).toContain("изменила статус");
+  });
+
+  it("разбор ссылки и номера", () => {
+    expect(dealIdFromText("https://katacars.amocrm.ru/leads/detail/44191587")).toBe(44191587);
+    expect(dealIdFromText("44191587")).toBe(44191587);
+    expect(dealIdFromText("-123456")).toBe(-123456);
+    expect(dealIdFromText("привет")).toBeNull();
+    expect(dealIdFromText("12")).toBeNull();
+  });
+});
+
+describe("старые заявки и проверка запуска", () => {
+  it("октябрьская заявка в «Забронировано» не спрашивается про выдачу, потом приходит на сдачу", async () => {
+    t.amoLeads.set(1, lead(1, { start: "2026-10-24", end: "2026-11-24" }));
+    await t.evening("2026-11-04");
+    expect(t.deal(1).state).toBe("in_rent");
+    expect(t.sent.some((s) => s.text.startsWith("🔑"))).toBe(false);
+    await t.evening("2026-11-24");
+    expect(t.deal(1).state).toBe("asked_end");
+    expect(t.accruals).toHaveLength(0);
+  });
+
+  it("уже заданный вопрос про такую заявку снимается из сводки", async () => {
+    t.amoLeads.set(1, lead(1, { start: "2026-11-02", end: "2026-11-24" }));
+    await t.evening("2026-11-04");
+    const block = t.messagesTo(OLGA).find((s) => s.text.startsWith("🔑"))!;
+    t.deal(1).start = "2026-10-24";
+    t.amoLeads.set(1, lead(1, { start: "2026-10-24", end: "2026-11-24" }));
+
+    await t.evening("2026-11-05");
+    expect(t.deal(1).state).toBe("in_rent");
+    expect(block.edited).toContain("перенесены");
+    expect(t.messagesTo(OLGA).filter((s) => s.text.startsWith("🔑"))).toHaveLength(1);
+  });
+
+  it("длинная октябрьская всё ещё спрашивается: нужны её ноябрьские оплаты", async () => {
+    t.amoLeads.set(1, lead(1, { start: "2026-10-01", end: "2027-02-01" }));
+    await t.evening("2026-11-04");
+    expect(t.deal(1).state).toBe("asked_issue");
+  });
+
+  async function importedIssued(id: number, opts: LeadOptions = {}) {
+    t.clock.day = "2026-12-04";
+    t.amoLeads.set(id, lead(id, { start: "2026-12-02", end: "2026-12-20", status: ISSUED, ...opts }));
+    await t.engine.importExisting();
+  }
+
+  it("проверка запуска: заявка приходит в сводке, деньги не удваиваются", async () => {
+    await importedIssued(1);
+    expect(t.totalFor("Ольга")).toBe(600);
+    expect(await t.engine.startReview()).toMatchObject({ toCheck: 1 });
+
+    await t.evening("2026-12-04");
+    expect(t.messagesTo(OLGA).find((s) => s.text.startsWith("🔑"))?.text).toContain("Fortuner");
+    await t.press(OLGA, "ia:2026-12-04");
+    expect(t.deal(1).state).toBe("in_rent");
+    expect(t.totalFor("Ольга")).toBe(600);
+    expect(t.accruals).toHaveLength(1);
+  });
+
+  it("проверка запуска: другая сумма двигает только разницу", async () => {
+    await importedIssued(1);
+    await t.engine.startReview();
+    await t.evening("2026-12-04");
+    await t.press(OLGA, "i:1:sum");
+    await t.reply(OLGA, "10000");
+    expect(t.totalFor("Ольга")).toBe(500);
+  });
+
+  it("проверка запуска: не приехал снимает деньги", async () => {
+    await importedIssued(1);
+    await t.engine.startReview();
+    await t.evening("2026-12-04");
+    await t.press(OLGA, "i:1:no");
+    expect(t.totalFor("Ольга")).toBe(0);
+  });
+
+  it("проверка запуска: перенос снимает деньги, новая выдача начисляет заново", async () => {
+    await importedIssued(1);
+    await t.engine.startReview();
+    await t.evening("2026-12-04");
+    await t.press(OLGA, "i:1:move");
+    await t.reply(OLGA, "10.12 20.12");
+    expect(t.totalFor("Ольга")).toBe(0);
+    await t.evening("2026-12-10");
+    await t.press(OLGA, "ia:2026-12-10");
+    expect(t.totalFor("Ольга")).toBe(600);
+  });
+
+  it("проверка запуска: отказ в amoCRM снимает деньги, а уже отвеченные заявки не трогает", async () => {
+    await importedIssued(1);
+    await t.engine.startReview();
+    t.amoLeads.set(1, lead(1, { start: "2026-12-02", end: "2026-12-20", status: REJECTED }));
+    await t.evening("2026-12-04");
+    expect(t.deal(1).state).toBe("cancelled");
+    expect(t.totalFor("Ольга")).toBe(0);
+
+    await bookAndIssue(2, { start: "2026-12-05", end: "2026-12-20" });
+    expect(await t.engine.startReview()).toMatchObject({ toCheck: 0 });
+  });
+
+  it("имя клиента из контакта amoCRM: в заявке и в начислении с датами", async () => {
+    t.amoLeads.set(1, { ...lead(1), clientName: "Анна Иванова" });
+    await t.evening("2026-12-05");
+    expect(t.deal(1).name).toBe("Анна Иванова");
+    expect(t.messagesTo(OLGA).find((s) => s.text.startsWith("🔑"))?.text).toContain("Анна Иванова");
+    await t.press(OLGA, "ia:2026-12-05");
+    expect(t.accruals[0]).toMatchObject({ client: "Анна Иванова", period: "05.12–13.12" });
+  });
+});
+
 describe("лист месяца", () => {
   it("называется по месяцу и считает только этот месяц", () => {
     expect(monthTabTitle("2026-11")).toBe("Ноябрь 2026");
@@ -889,6 +1171,8 @@ describe("лист месяца", () => {
     const cells = monthTabCells("2026-11").flat().join(" ");
     expect(cells).toContain("where B='2026-11'");
     expect(cells).not.toContain("2026-12");
+    expect(cells).toContain("'Клиент'");
+    expect(cells).toContain("'Даты аренды'");
   });
 });
 

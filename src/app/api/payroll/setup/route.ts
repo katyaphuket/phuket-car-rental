@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isPayrollConfigured, payrollEngine, telegramApi } from "@/lib/payroll";
-import { prepareSheet } from "@/lib/payroll/sheets-store";
+import { fillAccrualDetails, prepareSheet, sheetsStore } from "@/lib/payroll/sheets-store";
 
 export const maxDuration = 300;
 
@@ -32,5 +32,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, step, ...(await payrollEngine().importExisting()) });
   }
 
-  return NextResponse.json({ ok: false, error: "step must be prepare or import" }, { status: 400 });
+  // Puts rentals counted at launch without a question into the evening list, and fills in names.
+  if (step === "review") {
+    const result = await payrollEngine().startReview();
+    await fillAccrualDetails(await sheetsStore.deals());
+    return NextResponse.json({ ok: true, step, ...result });
+  }
+
+  return NextResponse.json({ ok: false, error: "step must be prepare, import or review" }, { status: 400 });
 }

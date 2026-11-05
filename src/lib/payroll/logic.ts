@@ -56,7 +56,7 @@ export type SentMessage = { chat: number; msg: number };
 
 export type Deal = {
   leadId: number;
-  name: string;
+  name: string; // the client
   car: string;
   start: string; // YYYY-MM-DD, Phuket calendar day
   end: string;
@@ -82,6 +82,8 @@ export type Accrual = {
   fraction: number;
   amount: number;
   key: string;
+  client?: string;
+  period?: string;
 };
 
 export type Person = { chat: number; name: string };
@@ -89,6 +91,7 @@ export type Person = { chat: number; name: string };
 export type AmoLeadRaw = {
   id: number;
   name?: string;
+  clientName?: string; // from the deal's main contact, filled in when the lead is read
   status_id?: number;
   price?: number;
   custom_fields_values?: { field_id?: number; values?: { value?: string | number }[] }[] | null;
@@ -131,7 +134,7 @@ export function fieldsFromLead(lead: AmoLeadRaw): LeadFields | null {
 
   return {
     leadId: lead.id,
-    name: lead.name ?? "",
+    name: lead.clientName || lead.name || "",
     car: String(values(lead, FIELD_CAR)[0]?.value ?? "машина не указана"),
     start,
     end,
@@ -141,7 +144,7 @@ export function fieldsFromLead(lead: AmoLeadRaw): LeadFields | null {
 }
 
 // Whole baht per person's share, in satang precision so 50/50 of an odd sum stays exact.
-export function accrualsFor(deal: Pick<Deal, "leadId" | "car">, base: number, share: ShareKey, type: string, date: string, key: string): Accrual[] {
+export function accrualsFor(deal: Pick<Deal, "leadId" | "car" | "name" | "start" | "end">, base: number, share: ShareKey, type: string, date: string, key: string): Accrual[] {
   return Object.entries(SHARES[share].split).map(([person, fraction]) => ({
     date,
     leadId: deal.leadId,
@@ -152,6 +155,8 @@ export function accrualsFor(deal: Pick<Deal, "leadId" | "car">, base: number, sh
     fraction,
     amount: Math.round(base * RATE * fraction * 100) / 100,
     key,
+    client: deal.name,
+    period: `${shortDay(deal.start)}–${shortDay(deal.end)}`,
   }));
 }
 
@@ -230,6 +235,7 @@ export const isRentprogDeal = (dealId: number) => dealId < 0;
 export type RpBooking = {
   id: number;
   car: string;
+  client: string;
   plate: string;
   phone: string;
   start: string;
@@ -242,20 +248,30 @@ export type RpBooking = {
   failed: boolean;
 };
 
-export type AmoPairCandidate = { leadId: number; status: number; plate: string; phones: string[]; start: string };
+export type AmoPairCandidate = { leadId: number; status: number; plate: string; phones: string[]; start: string; end: string; car: string; price: number };
 
 const PAIR_MAX_DAYS_APART = 3;
 
 export const phoneKey = (value: unknown) => String(value ?? "").replace(/\D/g, "").slice(-9);
 export const plateFrom = (value: unknown) => String(value ?? "").match(/\d{3,4}/g)?.pop() ?? "";
 
-// The phone comes first: it is always in RentProg. Not every amoCRM deal has one, though, so
-// the car and date catch the rest.
+const NOT_A_MODEL = new Set(["toyota", "mitsubishi", "ford", "honda", "nissan", "suzuki", "эконом", "комфорт", "премиум", "пикап", "мест", "new", "white", "black", "red", "grey", "brown", "dark", "max", "sunroof"]);
+
+function modelWords(car: string) {
+  return (car.toLowerCase().match(/[a-zа-яё0-9]{3,}/g) ?? []).filter((word) => !/^\d+$/.test(word) && !NOT_A_MODEL.has(word));
+}
+
+// The phone comes first: it is always in RentProg. Not every amoCRM deal has one, and many car
+// options carry no plate, so the car's plate, then its model, then identical dates and sum
+// catch the rest. Two different plates are never the same car.
 export function findAmoPair(booking: RpBooking, candidates: AmoPairCandidate[]) {
   const close = candidates.filter((c) => c.start && Math.abs(Date.parse(c.start) - Date.parse(booking.start)) <= PAIR_MAX_DAYS_APART * 86400000);
+  const words = modelWords(booking.car);
   return (
     close.find((c) => booking.phone && c.phones.includes(booking.phone)) ??
     close.find((c) => booking.plate && c.plate === booking.plate) ??
+    close.find((c) => !(booking.plate && c.plate) && modelWords(c.car).some((word) => words.includes(word))) ??
+    close.find((c) => c.start === booking.start && c.end === booking.end && c.price > 0 && c.price === booking.rent) ??
     null
   );
 }

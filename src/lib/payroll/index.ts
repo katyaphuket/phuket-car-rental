@@ -76,7 +76,25 @@ async function leadsFrom(path: string): Promise<AmoLeadRaw[]> {
   return body._embedded?.leads ?? [];
 }
 
+// The lead's title is usually a car and dates, so the client's name comes from its contact.
+async function withClientNames(leads: LeadWithContacts[]) {
+  const ids = [...new Set(leads.map(mainContact).filter((id): id is number => Boolean(id)))];
+  const names = new Map<number, string>();
+  for (let i = 0; i < ids.length; i += CONTACT_CHUNK) {
+    const query = ids.slice(i, i + CONTACT_CHUNK).map((id) => `filter[id][]=${id}`).join("&");
+    const res = await amoFetch(`contacts?limit=${PAGE_SIZE}&${query}`, signal());
+    if (res.status === 204) continue;
+    const body: { _embedded?: { contacts?: { id: number; name?: string }[] } } = await res.json();
+    for (const contact of body._embedded?.contacts ?? []) names.set(contact.id, contact.name ?? "");
+  }
+  return leads.map((lead) => {
+    const contact = mainContact(lead);
+    return { ...lead, clientName: (contact && names.get(contact)) || undefined };
+  });
+}
+
 const FIELD_START = 1734217;
+const FIELD_END = 1734219;
 const FIELD_CAR = 1734239;
 const PAIR_LOOKBACK_DAYS = 120;
 const CONTACT_CHUNK = 50;
@@ -121,18 +139,18 @@ export const amo: Amo = {
     const found: AmoLeadRaw[] = [];
     for (let i = 0; i < ids.length; i += ID_CHUNK) {
       const query = ids.slice(i, i + ID_CHUNK).map((id) => `filter[id][]=${id}`).join("&");
-      found.push(...(await leadsFrom(`leads?limit=${PAGE_SIZE}&${query}`)));
+      found.push(...(await leadsFrom(`leads?limit=${PAGE_SIZE}&with=contacts&${query}`)));
     }
-    return found;
+    return withClientNames(found);
   },
   async leadsInStatus(pipeline, status) {
     const found: AmoLeadRaw[] = [];
     for (let page = 1; ; page++) {
       const list = await leadsFrom(
-        `leads?limit=${PAGE_SIZE}&page=${page}&filter[statuses][0][pipeline_id]=${pipeline}&filter[statuses][0][status_id]=${status}`
+        `leads?limit=${PAGE_SIZE}&page=${page}&with=contacts&filter[statuses][0][pipeline_id]=${pipeline}&filter[statuses][0][status_id]=${status}`
       );
       found.push(...list);
-      if (list.length < PAGE_SIZE) return found;
+      if (list.length < PAGE_SIZE) return withClientNames(found);
     }
   },
   // Working stages in full, since a booking can be months ahead; finished ones only when recent,
@@ -150,6 +168,7 @@ export const amo: Amo = {
     const phones = await contactPhones([...new Set([...leads.values()].map(mainContact).filter((id): id is number => Boolean(id)))]);
     return [...leads.values()].map((lead): AmoPairCandidate => {
       const start = Number(cellValue(lead, FIELD_START) ?? 0);
+      const end = Number(cellValue(lead, FIELD_END) ?? 0);
       const contact = mainContact(lead);
       return {
         leadId: lead.id,
@@ -157,6 +176,9 @@ export const amo: Amo = {
         plate: plateFrom(cellValue(lead, FIELD_CAR)),
         phones: (contact && phones.get(contact)) || [],
         start: start ? phuketDay(start * 1000) : "",
+        end: end ? phuketDay(end * 1000) : "",
+        car: String(cellValue(lead, FIELD_CAR) ?? ""),
+        price: lead.price ?? 0,
       };
     });
   },
@@ -178,6 +200,7 @@ export const rentprog: RentProg = {
       .map((b) => ({
         id: b.id,
         car: b.car_name ?? "машина не указана",
+        client: [b.first_name, b.last_name].filter(Boolean).join(" "),
         plate: plateFrom(b.car?.number) || plateFrom(b.car_code) || plateFrom(b.car_name),
         phone: phoneKey(b.client?.phone),
         start: rentprogDay(b.start_date),

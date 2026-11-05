@@ -5,6 +5,7 @@ import {
   type Deal,
   OWNER,
   PERSON_NAMES,
+  STATE_LABEL,
   type Person,
   RATE,
   type RpBooking,
@@ -99,6 +100,7 @@ const PROMPT = {
   early: "итоговая сумма",
   ext: "продление",
   fix: "исправление суммы",
+  dates: "исправление дат",
   first: "оплата за первый месяц",
   pay: "оплата за месяц",
 } as const;
@@ -115,6 +117,19 @@ function parsePromptTag(text: string | undefined): { leadId: number; kind: Promp
   return kind ? { leadId: Number(m[1]), kind } : null;
 }
 
+// A car handed over, so its rent counts towards pay.
+const ISSUED_STATES: Deal["state"][] = ["in_rent", "asked_pay", "asked_end", "finished"];
+
+// What the owner can set by hand, in the order the buttons appear.
+const EDITABLE_STATES: Deal["state"][] = ["booked", "in_rent", "finished", "no_show", "cancelled"];
+
+// The link to a deal, or its number; numbers below zero exist only in RentProg.
+export function dealIdFromText(text: string) {
+  const link = text.match(/\/leads\/detail\/(\d+)/);
+  if (link) return Number(link[1]);
+  return /^-?\d{3,}$/.test(text) ? Number(text) : null;
+}
+
 const shareLabel = (deal: Deal) => (deal.share ? SHARES[deal.share].label : "менеджер не указан");
 const blockTitle = { i: "🔑 Выдачи: проверьте", p: "💳 Оплаты за месяц: проверьте", e: "🏁 Сдачи: проверьте" } as const;
 type BlockKind = keyof typeof blockTitle;
@@ -128,7 +143,8 @@ export function createEngine(deps: EngineDeps) {
   const dealLink = (id: number) => (isRentprogDeal(id) ? "только в RentProg, сделки в amoCRM нет" : leadUrl(id));
 
   function line(deal: Deal) {
-    return `${deal.car}, ${shortDay(deal.start)}–${shortDay(deal.end)}, ${money(deal.rent)} — ${shareLabel(deal)}\n${dealLink(deal.leadId)}`;
+    const client = deal.name ? `, ${deal.name}` : "";
+    return `${deal.car}${client}, ${shortDay(deal.start)}–${shortDay(deal.end)}, ${money(deal.rent)} — ${shareLabel(deal)}\n${dealLink(deal.leadId)}`;
   }
 
   const shortName = (deal: Deal) => `${deal.car.slice(0, 22)} ${shortDay(deal.start)}`;
@@ -239,7 +255,7 @@ export function createEngine(deps: EngineDeps) {
   function newRentprogDeal(booking: RpBooking, state: Deal["state"]): Deal {
     return {
       leadId: rentprogDealId(booking.id),
-      name: "",
+      name: booking.client,
       car: booking.car,
       start: booking.start,
       end: booking.end,
@@ -446,6 +462,30 @@ export function createEngine(deps: EngineDeps) {
     deals.push(...officeDeals);
     fresh.push(...officeDeals);
 
+    // A rental that began before the launch counts for nothing here, so asking "was it issued"
+    // only confuses; a long one still has to be asked, for its later monthly payments.
+    for (const deal of deals) {
+      if ((deal.state === "booked" || deal.state === "asked_issue") && deal.start < deps.startDate && !isLongRental(deal)) {
+        const asked = deal.state === "asked_issue";
+        const messages = deal.messages;
+        const block = deal.blockKey;
+        deal.state = "in_rent";
+        deal.blockKey = "";
+        deal.messages = [];
+        deal.lastAsked = "";
+        changed.add(deal);
+        if (asked && block) await refreshBlock(block[0] as BlockKind, block, messages, deals);
+      }
+    }
+
+    // A deal that was cancelled after being counted must not keep its money.
+    const counted = await store.accruals();
+    for (const deal of changed) {
+      if (deal.state !== "cancelled") continue;
+      const money = dealMoney(deal, counted);
+      if (money.totalBase !== 0) await writeAccruals(counted, money.reversal(money.fixNumber));
+    }
+
     // 3. Unclear deals go to the owner alone, and wait there until decided.
     const unclear = deals.filter((d) => d.state === "asked_whose" && d.lastAsked < day);
     for (const deal of unclear) {
@@ -487,7 +527,13 @@ export function createEngine(deps: EngineDeps) {
     deal.rent = sum;
     // A rental that began before the launch is already in the managers' own tables.
     if (deal.start >= deps.startDate) {
-      await writeAccruals(existing, accrualsFor(deal, sum, deal.share, "Выдача", deal.start, `${deal.leadId}:issue`));
+      const counted = dealMoney(deal, existing);
+      if (!counted.rows.length) {
+        await writeAccruals(existing, accrualsFor(deal, sum, deal.share, "Выдача", deal.start, `${deal.leadId}:issue`));
+      } else if (counted.totalBase !== sum) {
+        // Counted already, at launch or before a date change: only the difference moves, today.
+        await writeAccruals(existing, accrualsFor(deal, sum - counted.totalBase, deal.share, "Правка", today(), `${deal.leadId}:fix${counted.fixNumber}:sum`));
+      }
     }
     deal.state = "in_rent";
     deal.note = `🔑 Выдана (${person.name})`;
@@ -507,28 +553,22 @@ export function createEngine(deps: EngineDeps) {
     return sendToAll(owners(people), `⚠️ Не согласна: ${person.name}\n${line(deal)}\n\nКак решаем?`, buttons);
   }
 
-  // Money already counted moves to the new person today, so a month already paid stays as it was.
-  async function applyDecision(deal: Deal, share: ShareKey, people: Person[]) {
-    const existing = await store.accruals();
+  // What this deal has earned so far, per person. Corrections are dated today, so a month
+  // already paid stays as it was.
+  function dealMoney(deal: Deal, existing: Accrual[]) {
     const rows = uniqueAccruals(existing).filter((r) => r.leadId === deal.leadId);
-    const previousLabel = shareLabel(deal);
-    const previousShare = deal.share;
-
-    if (rows.length && share !== deal.share) {
-      const day = today();
-      const fixNumber = rows.filter((r) => r.type === "Правка").length + 1;
-      const net = new Map<string, { base: number; amount: number }>();
-      for (const r of rows) {
-        const item = net.get(r.person) ?? { base: 0, amount: 0 };
-        item.base += r.base * r.fraction;
-        item.amount += r.amount;
-        net.set(r.person, item);
-      }
-      const totalBase = [...net.values()].reduce((sum, item) => sum + item.base, 0);
-      const reversal: Accrual[] = [...net.entries()]
+    const net = new Map<string, { base: number; amount: number }>();
+    for (const r of rows) {
+      const item = net.get(r.person) ?? { base: 0, amount: 0 };
+      item.base += r.base * r.fraction;
+      item.amount += r.amount;
+      net.set(r.person, item);
+    }
+    const reversal = (fixNumber: number): Accrual[] =>
+      [...net.entries()]
         .filter(([, item]) => item.amount !== 0)
         .map(([person, item]) => ({
-          date: day,
+          date: today(),
           leadId: deal.leadId,
           car: deal.car,
           type: "Правка",
@@ -538,7 +578,90 @@ export function createEngine(deps: EngineDeps) {
           amount: -item.amount,
           key: `${deal.leadId}:fix${fixNumber}:out`,
         }));
-      await writeAccruals(existing, [...reversal, ...accrualsFor(deal, totalBase, share, "Правка", day, `${deal.leadId}:fix${fixNumber}:in`)]);
+    return {
+      rows,
+      fixNumber: rows.filter((r) => r.type === "Правка").length + 1,
+      totalBase: [...net.values()].reduce((sum, item) => sum + item.base, 0),
+      reversal,
+    };
+  }
+
+  async function takeBackMoney(deal: Deal) {
+    const existing = await store.accruals();
+    const money = dealMoney(deal, existing);
+    if (money.totalBase !== 0) await writeAccruals(existing, money.reversal(money.fixNumber));
+  }
+
+  // One time: rentals counted at launch without a question go into the evening list to be
+  // checked. Their money stays counted, and an answer only moves the difference.
+  async function startReview() {
+    const deals = await store.deals();
+    const existing = await store.accruals();
+    const toCheck = deals.filter(
+      (d) => ["in_rent", "finished"].includes(d.state) && !d.note && d.start >= deps.startDate && dealMoney(d, existing).totalBase !== 0
+    );
+    for (const deal of toCheck) {
+      deal.state = "booked";
+      deal.manual = true;
+    }
+
+    const leads = await amo.leadsByIds(deals.filter((d) => !isRentprogDeal(d.leadId)).map((d) => d.leadId));
+    const bookings = await rentprog.bookings();
+    const named = deals.filter((deal) => {
+      const name = isRentprogDeal(deal.leadId)
+        ? bookings.find((b) => rentprogDealId(b.id) === deal.leadId)?.client
+        : leads.find((l) => l.id === deal.leadId)?.clientName;
+      if (!name || name === deal.name) return false;
+      deal.name = name;
+      return true;
+    });
+    await store.updateDeals([...new Set([...toCheck, ...named])]);
+    return { toCheck: toCheck.length, named: named.length };
+  }
+
+  const notifyStaff = (people: Person[], text: string) => sendToAll(people.filter((p) => p.name !== OWNER), text);
+
+  async function showEditPanel(chat: number, deal: Deal) {
+    const buttons: Button[][] = [
+      [{ text: "Сменить менеджера", data: `om:${deal.leadId}` }],
+      [{ text: "Другая сумма", data: `fs:${deal.leadId}` }],
+      [{ text: "Другие даты", data: `od:${deal.leadId}` }],
+    ];
+    if (deal.share) buttons.push([{ text: "Изменить статус", data: `os:${deal.leadId}` }]);
+    await tg.send(chat, `${line(deal)}\nСтатус: ${STATE_LABEL[deal.state]}\n\nЧто изменить?`, { buttons });
+  }
+
+  // Issuing and un-issuing by hand has to move the money too, or the sheet would disagree
+  // with the status.
+  async function applyStatus(deal: Deal, state: Deal["state"], people: Person[]) {
+    const existing = await store.accruals();
+    const money = dealMoney(deal, existing);
+    const wasIssued = ISSUED_STATES.includes(deal.state);
+    const nowIssued = ISSUED_STATES.includes(state);
+
+    if (!nowIssued && money.totalBase !== 0) await writeAccruals(existing, money.reversal(money.fixNumber));
+    if (nowIssued && !wasIssued && money.totalBase === 0 && deal.share && deal.start >= deps.startDate) {
+      await writeAccruals(existing, accrualsFor(deal, deal.rent, deal.share, "Правка", today(), `${deal.leadId}:fix${money.fixNumber}:in`));
+    }
+    if (!nowIssued) {
+      deal.monthlySum = 0;
+      deal.nextPay = "";
+    }
+    deal.state = state;
+    deal.manual = true;
+    deal.note = `✏️ ${STATE_LABEL[state]} (${OWNER})`;
+    await store.updateDeals([deal]);
+    await notifyStaff(people, `Владелица изменила статус: ${STATE_LABEL[state]}\n${line(deal)}`);
+  }
+
+  async function applyDecision(deal: Deal, share: ShareKey, people: Person[]) {
+    const existing = await store.accruals();
+    const { rows, fixNumber, totalBase, reversal } = dealMoney(deal, existing);
+    const previousLabel = shareLabel(deal);
+    const previousShare = deal.share;
+
+    if (rows.length && share !== deal.share) {
+      await writeAccruals(existing, [...reversal(fixNumber), ...accrualsFor(deal, totalBase, share, "Правка", today(), `${deal.leadId}:fix${fixNumber}:in`)]);
     }
 
     deal.share = share;
@@ -607,11 +730,33 @@ export function createEngine(deps: EngineDeps) {
       return tg.answer(query.id, "Отправлено владелице");
     }
 
+    if (kind === "om" || kind === "od" || kind === "os" || kind === "ost") {
+      if (person.name !== OWNER) return tg.answer(query.id, "Решает только владелица");
+      if (kind === "om") {
+        await tg.send(query.from.id, `Чья заявка?\n${line(deal)}`, { buttons: decisionButtons(deal) });
+        return tg.answer(query.id);
+      }
+      if (kind === "od") return prompt(query, deal.leadId, "dates", "Напишите начало и конец. Например: 12.12 20.12");
+      if (kind === "os") {
+        await tg.send(query.from.id, `Какой статус поставить?\nСейчас: ${STATE_LABEL[deal.state]}\n${line(deal)}`, {
+          buttons: EDITABLE_STATES.filter((state) => state !== deal.state).map((state) => [{ text: STATE_LABEL[state], data: `ost:${deal.leadId}:${state}` }]),
+        });
+        return tg.answer(query.id);
+      }
+      const state = EDITABLE_STATES.find((item) => item === value);
+      if (!state || !deal.share) return stale();
+      await applyStatus(deal, state, people);
+      await refreshDealBlock(deal, deals);
+      await closeMenu(`✅ Статус: ${STATE_LABEL[state]}\n${line(deal)}`);
+      return tg.answer(query.id, "Записано");
+    }
+
     if (kind === "f" || kind === "fs") {
       if (person.name !== OWNER) return tg.answer(query.id, "Решает только владелица");
       if (kind === "fs") return prompt(query, deal.leadId, "fix", `Напишите верную сумму аренды. Сейчас: ${money(deal.rent)}. Например: 12000`);
       if (!isShareKey(value)) return stale();
       await applyDecision(deal, value, people);
+      await refreshDealBlock(deal, deals);
       await closeMenu(`✅ Решено: ${SHARES[value].label}\n${line(deal)}`);
       return tg.answer(query.id, "Записано");
     }
@@ -651,6 +796,7 @@ export function createEngine(deps: EngineDeps) {
     if (kind === "i") {
       if (deal.state !== "asked_issue") return stale();
       if (value === "no") {
+        await takeBackMoney(deal);
         deal.state = "no_show";
         deal.note = `🚫 Не приехал (${person.name})`;
         await store.updateDeals([deal]);
@@ -742,7 +888,7 @@ export function createEngine(deps: EngineDeps) {
       const sum = parseSum(text);
       if (sum === null) return void (await again("Нужно число, например: 12000"));
       const existing = await store.accruals();
-      const counted = existing.some((r) => r.leadId === deal.leadId);
+      const counted = ISSUED_STATES.includes(deal.state) && existing.some((r) => r.leadId === deal.leadId);
       const delta = sum - countedRent(deal, existing);
       if (counted && delta !== 0 && deal.share) {
         const n = existing.filter((r) => r.leadId === deal.leadId && r.type === "Правка").length + 1;
@@ -751,8 +897,25 @@ export function createEngine(deps: EngineDeps) {
       if (!deal.monthlySum) deal.rent = sum;
       deal.manual = true;
       await save();
-      await sendToAll(people.filter((p) => p.name !== OWNER && deal.share && Object.hasOwn(SHARES[deal.share].split, p.name)), `Владелица исправила сумму: ${money(sum)}\n${line(deal)}`);
+      await notifyStaff(people, `Владелица исправила сумму: ${money(sum)}\n${line(deal)}`);
       return void (await tg.send(chat, `Записано: ${money(sum)}.`));
+    }
+
+    if (tag.kind === "dates") {
+      if (person.name !== OWNER) return;
+      const range = parseDateRange(text, day);
+      if (!range) return void (await again("Нужно две даты, например: 12.12 20.12"));
+      deal.start = range.start;
+      deal.end = range.end;
+      deal.manual = true;
+      // A question about a day that has moved ahead waits for that day.
+      if (deal.state === "asked_issue" && deal.start > day) deal.state = "booked";
+      if (deal.state === "asked_end" && deal.end > day) deal.state = "in_rent";
+      if (deal.monthlySum) deal.nextPay = firstMonthlyPayment(deal.start, deal.end, day);
+      deal.note = deal.state === "booked" || deal.state === "in_rent" ? "📅 Даты изменены" : deal.note;
+      await save();
+      await notifyStaff(people, `Владелица изменила даты\n${line(deal)}`);
+      return void (await tg.send(chat, `Записано: ${shortDay(range.start)}–${shortDay(range.end)}.`));
     }
 
     if (tag.kind === "sum") {
@@ -794,6 +957,7 @@ export function createEngine(deps: EngineDeps) {
       if (deal.state !== "asked_issue") return void (await answered());
       const range = parseDateRange(text, day);
       if (!range) return void (await again("Нужно две даты, например: 12.12 20.12"));
+      await takeBackMoney(deal);
       deal.start = range.start;
       deal.end = range.end;
       deal.manual = true;
@@ -942,6 +1106,17 @@ export function createEngine(deps: EngineDeps) {
     if (tag) return onReply(chat, person, tag, text, people);
 
     if (person.name === OWNER && (text === TOTALS || text === "/itogi")) return totals(chat);
+    if (person.name === OWNER) {
+      const id = dealIdFromText(text);
+      if (id !== null) {
+        const deal = (await store.deals()).find((d) => d.leadId === id);
+        if (deal) return showEditPanel(chat, deal);
+        await tg.send(chat, "Такой заявки в таблице нет. В таблице только заявки с этапов «Забронировано» и дальше, с даты запуска. Если она только что попала на этот этап, она появится после 18:00.");
+        return;
+      }
+      await tg.send(chat, "Чтобы изменить заявку, пришлите ссылку на сделку amoCRM или её номер из первого столбца листа «Заявки». На вопросы бота отвечайте кнопками.");
+      return;
+    }
     if (person.name !== OWNER && (text === MY_DEALS || text === "/zayavki")) return myDeals(chat, person);
 
     await tg.send(chat, "Отвечайте кнопками. Если бот просил написать сумму или дату, нажмите на его сообщение и выберите «Ответить».");
@@ -952,5 +1127,5 @@ export function createEngine(deps: EngineDeps) {
     else if (update.message) await onMessage(update.message);
   }
 
-  return { onUpdate, dailyRun, importExisting };
+  return { onUpdate, dailyRun, importExisting, startReview };
 }

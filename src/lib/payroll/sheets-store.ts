@@ -11,8 +11,8 @@ const TAB_ACCRUALS = "Начисления";
 const TAB_PEOPLE = "Люди";
 const TAB_SUMMARY = "Итоги";
 
-const DEAL_HEADER = ["Сделка (минус: только RentProg)", "Название", "Машина", "Выдача", "Возврат", "Аренда", "Чья", "Статус", "Правка вручную", "Последний вопрос", "Список", "Ответ", "Сообщения", "Оплата за месяц", "Следующая оплата"];
-const ACCRUAL_HEADER = ["Дата", "Месяц", "Сделка", "Машина", "Тип", "База", "Кому", "Доля", "Начислено", "Ключ", "Аренда (доля)", "Ссылка"];
+const DEAL_HEADER = ["Сделка (минус: только RentProg)", "Клиент", "Машина", "Выдача", "Возврат", "Аренда", "Чья", "Статус", "Правка вручную", "Последний вопрос", "Список", "Ответ", "Сообщения", "Оплата за месяц", "Следующая оплата"];
+const ACCRUAL_HEADER = ["Дата", "Месяц", "Сделка", "Машина", "Тип", "База", "Кому", "Доля", "Начислено", "Ключ", "Аренда (доля)", "Ссылка", "Клиент", "Даты аренды"];
 const PEOPLE_HEADER = ["Telegram", "Кто"];
 
 const STATE_BY_LABEL = Object.fromEntries(Object.entries(STATE_LABEL).map(([state, label]) => [label, state])) as Record<string, DealState>;
@@ -25,7 +25,7 @@ export function monthTabTitle(month: string) {
 
 // A month sheet holds only formulas over "Начисления", so it can never disagree with the data.
 export function monthTabCells(month: string, sep = ","): string[][] {
-  const data = `'${TAB_ACCRUALS}'!A:L`;
+  const data = `'${TAB_ACCRUALS}'!A:N`;
   const inMonth = `'${TAB_ACCRUALS}'!B:B${sep}"${month}"`;
   return [
     [monthTabTitle(month)],
@@ -35,7 +35,7 @@ export function monthTabCells(month: string, sep = ","): string[][] {
     [`=IFERROR(QUERY(${data}${sep}"select G, sum(K), sum(I) where B='${month}' group by G order by sum(I) desc label G 'Кто', sum(K) 'Аренда', sum(I) '5%'"${sep}1)${sep}"Пока начислений нет")`],
     ...Array.from({ length: 7 }, () => []),
     ["Все начисления"],
-    [`=IFERROR(QUERY(${data}${sep}"select A, D, E, K, G, I, L where B='${month}' order by A, C label A 'Дата', D 'Машина', E 'Тип', K 'Аренда', G 'Кому', I '5%', L 'Ссылка'"${sep}1)${sep}"Пока начислений нет")`],
+    [`=IFERROR(QUERY(${data}${sep}"select A, D, M, N, E, K, G, I, L where B='${month}' order by A, C label A 'Начислено', D 'Машина', M 'Клиент', N 'Даты аренды', E 'Тип', K 'Аренда', G 'Кому', I '5%', L 'Ссылка'"${sep}1)${sep}"Пока начислений нет")`],
   ];
 }
 
@@ -204,6 +204,17 @@ function columnWidth(sheetId: number, from: number, to: number, pixelSize: numbe
   };
 }
 
+function monthColumnWidths(sheetId: number) {
+  return [
+    columnWidth(sheetId, 0, 1, 130),
+    columnWidth(sheetId, 1, 2, 230),
+    columnWidth(sheetId, 2, 3, 180),
+    columnWidth(sheetId, 3, 4, 110),
+    columnWidth(sheetId, 4, 8, 110),
+    columnWidth(sheetId, 8, 9, 320),
+  ];
+}
+
 const MONTH_ROWS = { title: 0, totals: 1, peopleTitle: 3, peopleHeader: 4, listTitle: 12, listHeader: 13 };
 
 // New months go first, so the current one opens without scrolling through the tabs.
@@ -231,15 +242,26 @@ async function ensureMonthTabs(months: string[]) {
           boldRow(sheetId, MONTH_ROWS.peopleHeader),
           boldRow(sheetId, MONTH_ROWS.listTitle, 12),
           boldRow(sheetId, MONTH_ROWS.listHeader),
-          columnWidth(sheetId, 0, 1, 150),
-          columnWidth(sheetId, 1, 2, 240),
-          columnWidth(sheetId, 2, 6, 120),
-          columnWidth(sheetId, 6, 7, 320),
+          ...monthColumnWidths(sheetId),
         ],
       }),
     });
     tabs.set(title, sheetId);
   }
+}
+
+// Rows written before the client and dates columns existed get them from the deal.
+export async function fillAccrualDetails(deals: Deal[]) {
+  const rows = await readRows(TAB_ACCRUALS);
+  const values = rows.map((row) => {
+    const deal = deals.find((d) => d.leadId === Number(row[2]));
+    return deal ? [deal.name, `${deal.start.slice(8, 10)}.${deal.start.slice(5, 7)}–${deal.end.slice(8, 10)}.${deal.end.slice(5, 7)}`] : [row[12] ?? "", row[13] ?? ""];
+  });
+  if (!values.length) return;
+  await sheets(`/values/${range(TAB_ACCRUALS, `M2:N${values.length + 1}`)}?valueInputOption=RAW`, {
+    method: "PUT",
+    body: JSON.stringify({ values }),
+  });
 }
 
 export function isSheetsConfigured() {
@@ -295,7 +317,7 @@ export const sheetsStore: Store = {
   async addAccruals(rows) {
     await appendRows(
       TAB_ACCRUALS,
-      rows.map((r) => [r.date, r.date.slice(0, 7), r.leadId, r.car, r.type, r.base, r.person, r.fraction, r.amount, r.key, r.base * r.fraction, accrualLink(r.leadId)])
+      rows.map((r) => [r.date, r.date.slice(0, 7), r.leadId, r.car, r.type, r.base, r.person, r.fraction, r.amount, r.key, r.base * r.fraction, accrualLink(r.leadId), r.client ?? "", r.period ?? ""])
     );
     await ensureMonthTabs([...new Set(rows.map((r) => r.date.slice(0, 7)))]);
   },
@@ -359,5 +381,9 @@ export async function prepareSheet() {
       method: "PUT",
       body: JSON.stringify({ values: monthTabCells(month, sep) }),
     });
+    const sheetId = (await existingTabs()).get(monthTabTitle(month));
+    if (sheetId !== undefined) {
+      await sheets(":batchUpdate", { method: "POST", body: JSON.stringify({ requests: monthColumnWidths(sheetId) }) });
+    }
   }
 }

@@ -108,6 +108,8 @@ export type RentProgBooking = {
   id: number;
   car_name?: string | null;
   car_code?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
   car?: { number?: string | number | null } | null;
   client?: { phone?: string | null } | null;
   start_date: string; // "DD-MM-YYYY HH:mm"
