@@ -51,11 +51,63 @@ function dayWord(days: number) {
   return "дней";
 }
 
-function buildMessage(url: string, name: string, locale: "ru" | "en", rangeText: string) {
-  if (locale === "en") {
-    return `${name ? `Hi ${name}!` : "Hi!"} Here are the cars we've picked for you for ${rangeText}. Photos, prices and terms are on this page:\n${url}`;
+// Шаблоны сообщения клиенту. {имя}, {даты}, {ссылка} подставляются сами.
+type TemplateKey = "greet" | "plain" | "short" | "mine";
+const TEMPLATE_LABELS: Record<TemplateKey, string> = {
+  greet: "С приветствием",
+  plain: "Без приветствия",
+  short: "Коротко",
+  mine: "Мой шаблон",
+};
+const TEMPLATES: Record<"ru" | "en", Record<Exclude<TemplateKey, "mine">, string>> = {
+  ru: {
+    greet: "{имя}, здравствуйте! Подобрали для вас машины на {даты}. Фото, цены и условия — по ссылке:\n{ссылка}",
+    plain: "Подобрали для вас машины на {даты}. Фото, цены и условия — по ссылке:\n{ссылка}",
+    short: "Подборка на {даты}:\n{ссылка}",
+  },
+  en: {
+    greet: "Hi {имя}! Here are the cars we've picked for you for {даты}. Photos, prices and terms are on this page:\n{ссылка}",
+    plain: "Here are the cars we've picked for you for {даты}. Photos, prices and terms are on this page:\n{ссылка}",
+    short: "Your car selection for {даты}:\n{ссылка}",
+  },
+};
+const TEMPLATE_STORAGE_KEY = "kc-offer-template";
+const MY_TEMPLATE_STORAGE_KEY = "kc-offer-my-template";
+
+function storageGet(key: string) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
   }
-  return `${name ? `${name}, здравствуйте!` : "Здравствуйте!"} Подобрали для вас машины на ${rangeText}. Фото, цены и условия — по ссылке:\n${url}`;
+}
+
+function storageSet(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // ignore
+  }
+}
+
+function fillTemplate(template: string, values: { name: string; range: string; url: string; locale: "ru" | "en" }) {
+  let text = template;
+  if (values.name) {
+    text = text.replaceAll("{имя}", values.name);
+  } else {
+    // Без имени: «{имя}, здравствуйте!» -> «Здравствуйте!», «Hi {имя}!» -> «Hi!»
+    text = text
+      .replace(/\{имя\},\s*(\S)/g, (_, first: string) => first.toUpperCase())
+      .replace(/\s*\{имя\}/g, "");
+  }
+  return text.replaceAll("{даты}", values.range).replaceAll("{ссылка}", values.url);
+}
+
+// Свой текст -> шаблон: имя, даты и ссылку заменяем на метки, чтобы шаблон подходил другим клиентам.
+function toTemplate(text: string, values: { name: string; range: string; url: string }) {
+  let template = text.replaceAll(values.url, "{ссылка}").replaceAll(values.range, "{даты}");
+  if (values.name) template = template.replaceAll(values.name, "{имя}");
+  return template;
 }
 
 const MONTHS_RU = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
@@ -75,7 +127,7 @@ function defaultDate(offsetDays: number) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T10:00`;
 }
 
-export function OfferBuilder({ prefill }: { prefill?: LeadPrefill | null }) {
+export function OfferBuilder({ prefill, canSend = false }: { prefill?: LeadPrefill | null; canSend?: boolean }) {
   const [start, setStart] = useState(() => prefill?.start ?? defaultDate(1));
   const [end, setEnd] = useState(() => prefill?.end ?? defaultDate(8));
   const [name, setName] = useState(prefill?.name ?? "");
@@ -95,7 +147,12 @@ export function OfferBuilder({ prefill }: { prefill?: LeadPrefill | null }) {
   const [prices, setPrices] = useState<Record<string, string>>({});
 
   const [creating, setCreating] = useState(false);
-  const [result, setResult] = useState<{ url: string; message: string; missing: number } | null>(null);
+  const [result, setResult] = useState<{ url: string; range: string; name: string; locale: "ru" | "en"; missing: number } | null>(null);
+  const [message, setMessage] = useState("");
+  const [template, setTemplate] = useState<TemplateKey>("greet");
+  const [sendState, setSendState] = useState<"idle" | "sending" | "sent">("idle");
+  const [sendError, setSendError] = useState("");
+  const [templateSaved, setTemplateSaved] = useState(false);
   const [copied, setCopied] = useState<"" | "message" | "link">("");
 
   useEffect(() => {
@@ -197,12 +254,61 @@ export function OfferBuilder({ prefill }: { prefill?: LeadPrefill | null }) {
       }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      const message = buildMessage(data.url, name.trim(), locale, rangeLabel(searchedFor.start, searchedFor.end, locale));
-      setResult({ url: data.url, message, missing: data.missing ?? 0 });
+      const values = { url: data.url as string, range: rangeLabel(searchedFor.start, searchedFor.end, locale), name: name.trim(), locale };
+      const savedKey = storageGet(TEMPLATE_STORAGE_KEY) as TemplateKey | null;
+      const myTemplate = storageGet(MY_TEMPLATE_STORAGE_KEY);
+      const key: TemplateKey = savedKey === "mine" && !myTemplate ? "greet" : savedKey && savedKey in TEMPLATE_LABELS ? savedKey : "greet";
+      setTemplate(key);
+      setMessage(fillTemplate(key === "mine" ? myTemplate! : TEMPLATES[locale][key], values));
+      setSendState("idle");
+      setSendError("");
+      setResult({ ...values, missing: data.missing ?? 0 });
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : "Не получилось создать ссылку");
     } finally {
       setCreating(false);
+    }
+  }
+
+  function applyTemplate(key: TemplateKey) {
+    if (!result) return;
+    const myTemplate = storageGet(MY_TEMPLATE_STORAGE_KEY);
+    if (key === "mine" && !myTemplate) return;
+    setTemplate(key);
+    storageSet(TEMPLATE_STORAGE_KEY, key);
+    setMessage(fillTemplate(key === "mine" ? myTemplate! : TEMPLATES[result.locale][key], result));
+    setSendError("");
+  }
+
+  function saveMyTemplate() {
+    if (!result) return;
+    storageSet(MY_TEMPLATE_STORAGE_KEY, toTemplate(message, result));
+    storageSet(TEMPLATE_STORAGE_KEY, "mine");
+    setTemplate("mine");
+    setTemplateSaved(true);
+    setTimeout(() => setTemplateSaved(false), 2000);
+  }
+
+  async function sendToClient() {
+    if (!result || !prefill) return;
+    setSendState("sending");
+    setSendError("");
+    try {
+      const res = await fetch("/api/offer/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: prefill.leadId, text: message }),
+      });
+      if (res.status === 401) {
+        window.location.reload();
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error);
+      setSendState("sent");
+    } catch (err) {
+      setSendState("idle");
+      setSendError(err instanceof Error && err.message ? err.message : "Не получилось отправить. Скопируйте сообщение и отправьте вручную.");
     }
   }
 
@@ -416,17 +522,67 @@ export function OfferBuilder({ prefill }: { prefill?: LeadPrefill | null }) {
           <div className="mx-auto max-w-5xl">
             {result ? (
               <div className="flex flex-col gap-2">
-                <textarea readOnly value={result.message} rows={3} className={`${inputClass} resize-none text-xs`} />
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs text-foreground-muted">Шаблон:</span>
+                  {(Object.keys(TEMPLATE_LABELS) as TemplateKey[]).map((key) => {
+                    const disabled = key === "mine" && !storageGet(MY_TEMPLATE_STORAGE_KEY);
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        disabled={disabled}
+                        title={disabled ? "Отредактируйте текст и нажмите «Запомнить как мой шаблон»" : undefined}
+                        onClick={() => applyTemplate(key)}
+                        className={`cursor-pointer rounded-full border px-2.5 py-1 text-xs disabled:cursor-default disabled:opacity-40 ${
+                          template === key ? "border-accent bg-accent-soft text-accent-soft-foreground" : "border-border text-foreground"
+                        }`}
+                      >
+                        {TEMPLATE_LABELS[key]}
+                      </button>
+                    );
+                  })}
+                  <button type="button" onClick={saveMyTemplate} className="ml-auto cursor-pointer text-xs text-accent underline">
+                    {templateSaved ? "Запомнила ✓" : "Запомнить как мой шаблон"}
+                  </button>
+                </div>
+                <textarea
+                  value={message}
+                  onChange={(e) => {
+                    setMessage(e.target.value);
+                    setSendError("");
+                    if (sendState === "sent") setSendState("idle");
+                  }}
+                  rows={4}
+                  className={`${inputClass} resize-y text-sm`}
+                />
+                {!message.includes(result.url) && (
+                  <p className="text-xs text-amber-700">⚠ В тексте нет ссылки на подборку — клиент её не увидит.</p>
+                )}
                 {result.missing > 0 && (
                   <p className="text-xs text-amber-700">
                     {result.missing} маш. не попали в подборку: RentProg не отдал цену. Можно создать ссылку ещё раз.
                   </p>
                 )}
-                <div className="flex flex-wrap gap-2">
+                {sendError && <p className="text-xs text-red-600">{sendError}</p>}
+                <div className="flex flex-wrap items-center gap-2">
+                  {canSend && prefill && (
+                    <button
+                      type="button"
+                      onClick={sendToClient}
+                      disabled={sendState !== "idle" || !message.includes(result.url)}
+                      className="cursor-pointer rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-hover disabled:opacity-60"
+                    >
+                      {sendState === "sending" ? "Отправляю…" : sendState === "sent" ? "Отправлено клиенту ✓" : "Отправить клиенту"}
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => copy(result.message, "message")}
-                    className="cursor-pointer rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-hover"
+                    onClick={() => copy(message, "message")}
+                    className={`cursor-pointer rounded-lg px-4 py-2 text-sm ${
+                      canSend && prefill
+                        ? "border border-border text-foreground hover:bg-surface-muted"
+                        : "bg-accent font-medium text-accent-foreground hover:bg-accent-hover"
+                    }`}
                   >
                     {copied === "message" ? "Скопировано ✓" : "Скопировать сообщение"}
                   </button>
@@ -445,6 +601,9 @@ export function OfferBuilder({ prefill }: { prefill?: LeadPrefill | null }) {
                   >
                     Посмотреть как клиент
                   </a>
+                  {sendState === "sent" && (
+                    <span className="text-xs text-foreground-muted">Сообщение появится в чате сделки через несколько секунд.</span>
+                  )}
                 </div>
               </div>
             ) : (

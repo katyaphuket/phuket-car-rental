@@ -4,6 +4,7 @@ import { isManagerCookieValid, isManagerPasswordSet, MANAGER_COOKIE } from "@/li
 import { ManagerLogin } from "@/components/manager/manager-login";
 import { OfferBuilder } from "@/components/manager/offer-builder";
 import { loadLeadPrefill } from "@/lib/amo-offer-link";
+import { isOfferSendConfigured } from "@/lib/offer-send";
 
 export const metadata: Metadata = {
   title: "Подборка для клиента — KataCars",
@@ -29,5 +30,5 @@ export default async function ManagerPage({ searchParams }: ManagerPageProps) {
   // Открыли из карточки сделки amoCRM — подставляем даты, имя и район из сделки.
   const { lead } = await searchParams;
   const prefill = await loadLeadPrefill(lead);
-  return <OfferBuilder key={prefill?.leadId ?? "new"} prefill={prefill} />;
+  return <OfferBuilder key={prefill?.leadId ?? "new"} prefill={prefill} canSend={isOfferSendConfigured()} />;
 }

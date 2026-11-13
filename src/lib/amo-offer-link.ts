@@ -38,21 +38,35 @@ export function managerLinkForLead(leadId: number | string) {
   return `${base}/manager?lead=${leadId}`;
 }
 
-let cachedFieldId: { id: number | null; expiresAt: number } | null = null;
+const cachedFieldIds = new Map<string, { id: number | null; expiresAt: number }>();
 
-export async function findOfferLinkFieldId(signal: AbortSignal) {
-  if (cachedFieldId && cachedFieldId.expiresAt > Date.now()) return cachedFieldId.id;
+// ID поля сделки по его коду (код задаём при создании поля через API)
+// или по точному названию (если поле создали вручную в настройках amoCRM).
+export async function findLeadFieldIdByCode(code: string, signal: AbortSignal, name?: string) {
+  const cached = cachedFieldIds.get(code);
+  if (cached && cached.expiresAt > Date.now()) return cached.id;
   let id: number | null = null;
   for (let page = 1; page <= 10 && id === null; page++) {
     const res = await amoFetch(`leads/custom_fields?limit=250&page=${page}`, signal);
     if (res.status === 204) break;
-    const body: { _embedded?: { custom_fields?: { id: number; code?: string | null }[] }; _links?: { next?: unknown } } =
-      await res.json();
-    id = body._embedded?.custom_fields?.find((field) => field.code === OFFER_LINK_FIELD_CODE)?.id ?? null;
+    const body: {
+      _embedded?: { custom_fields?: { id: number; code?: string | null; name?: string }[] };
+      _links?: { next?: unknown };
+    } = await res.json();
+    const fields = body._embedded?.custom_fields ?? [];
+    id =
+      fields.find((field) => field.code === code)?.id ??
+      (name ? fields.find((field) => field.name?.trim().toLowerCase() === name.toLowerCase())?.id : undefined) ??
+      null;
     if (!body._links?.next) break;
   }
-  cachedFieldId = { id, expiresAt: Date.now() + FIELD_ID_TTL_MS };
+  // Не найденное поле не запоминаем: его могут создать в любой момент.
+  if (id !== null) cachedFieldIds.set(code, { id, expiresAt: Date.now() + FIELD_ID_TTL_MS });
   return id;
+}
+
+export function findOfferLinkFieldId(signal: AbortSignal) {
+  return findLeadFieldIdByCode(OFFER_LINK_FIELD_CODE, signal);
 }
 
 // Из вебхука amoCRM: сделки (новые и изменённые), у которых поле-ссылка ещё пустое.
@@ -166,12 +180,17 @@ export async function loadLeadPrefill(leadIdRaw: string | undefined): Promise<Le
     let name: string | undefined;
     let messenger: Messenger | undefined;
     if (contactId) {
-      messenger = await findMessenger(contactId, leadId, signal).catch((error) => {
-        console.error(`Offer prefill: amoCRM talks for lead ${leadId} failed:`, error);
-        return undefined;
-      });
-      const contactRes = await amoFetch(`contacts/${contactId}`, signal).catch(() => null);
-      const contact: { name?: string } | null = contactRes ? await contactRes.json().catch(() => null) : null;
+      // Каждый запрос к amoCRM — около секунды, поэтому контакт и переписки спрашиваем одновременно.
+      const [foundMessenger, contact] = await Promise.all([
+        findMessenger(contactId, leadId, AbortSignal.timeout(AMO_TIMEOUT_MS)).catch((error) => {
+          console.error(`Offer prefill: amoCRM talks for lead ${leadId} failed:`, error);
+          return undefined;
+        }),
+        amoFetch(`contacts/${contactId}`, AbortSignal.timeout(AMO_TIMEOUT_MS))
+          .then((res) => res.json() as Promise<{ name?: string }>)
+          .catch(() => null),
+      ]);
+      messenger = foundMessenger;
       name = cleanContactName(contact?.name);
     }
 
