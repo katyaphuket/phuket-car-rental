@@ -15,7 +15,7 @@ const AMO_TIMEOUT_MS = 15000;
 function salesbotId() {
   return Number(process.env.OFFER_SALESBOT_ID || OFFER_SALESBOT_ID) || null;
 }
-const OFFER_SALESBOT_ID = "";
+const OFFER_SALESBOT_ID = "3178"; // бот «Отправка подборки» в amoCRM
 
 export function isOfferSendConfigured() {
   return isAmoConfigured() && salesbotId() !== null;
