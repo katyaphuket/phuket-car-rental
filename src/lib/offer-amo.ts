@@ -2,7 +2,7 @@ import { amoFetch, FIELD, findCarOption, getCarOptions, isAmoConfigured } from "
 import { getDisplayName } from "@/lib/car-features";
 import { isLeadNotifyConfigured, sendToTelegram } from "@/lib/lead-notify";
 import { fetchCarData } from "@/lib/rentprog";
-import { formatRange, type Offer, type OfferCar } from "@/lib/offer";
+import { formatRange, parseRentProgDate, type Offer, type OfferCar } from "@/lib/offer";
 
 // Что подборка делает в amoCRM и Telegram: отправлена → «Отправлено предложение»,
 // клиент открыл → примечание, клиент выбрал машину → «Запросили документы», поле «Авто», Telegram.
@@ -58,23 +58,53 @@ async function addNote(leadId: number, text: string, signal: AbortSignal) {
   });
 }
 
+type CustomField = { field_id: number; values: { value: string | number }[] };
+
 async function updateLead(
   leadId: number,
   step: Step | null,
-  customFields: { field_id: number; values: { value: string | number }[] }[],
-  signal: AbortSignal
+  customFields: CustomField[],
+  signal: AbortSignal,
+  price?: number
 ) {
   const res = await amoFetch(`leads/${leadId}`, signal);
   const lead: { pipeline_id: number; status_id: number } = await res.json();
   const statusId = step ? nextStatus(lead.pipeline_id, lead.status_id, step) : null;
-  if (!statusId && customFields.length === 0) return;
-  await amoFetch(`leads/${leadId}`, signal, {
-    method: "PATCH",
-    body: JSON.stringify({
-      ...(statusId ? { status_id: statusId } : {}),
-      ...(customFields.length > 0 ? { custom_fields_values: customFields } : {}),
-    }),
+  if (!statusId && customFields.length === 0 && price === undefined) return;
+  const patch = (fields: CustomField[]) =>
+    amoFetch(`leads/${leadId}`, signal, {
+      method: "PATCH",
+      body: JSON.stringify({
+        ...(statusId ? { status_id: statusId } : {}),
+        ...(price !== undefined ? { price } : {}),
+        ...(fields.length > 0 ? { custom_fields_values: fields } : {}),
+      }),
+    });
+  // Удалили или переименовали поле в amoCRM — этап и бюджет всё равно запишем.
+  await patch(customFields).catch((error) => {
+    if (customFields.length === 0) throw error;
+    console.error(`Offer: amoCRM lead ${leadId} fields rejected, retrying without them:`, error);
+    return patch([]);
   });
+}
+
+// Что клиент выбрал — в поля сделки, как у заявки с сайта.
+// «Бюджет» — только аренда без доставки: из него зарплатный бот считает процент менеджера.
+export function chosenCarFields(offer: Offer, car: OfferCar): CustomField[] {
+  const fields: CustomField[] = [];
+  const add = (fieldId: number, value: string | number | undefined) => {
+    if (value !== undefined && value !== "") fields.push({ field_id: fieldId, values: [{ value }] });
+  };
+  const start = parseRentProgDate(offer.start);
+  const end = parseRentProgDate(offer.end);
+  add(FIELD.startDate, start ? start.getTime() / 1000 : undefined);
+  add(FIELD.endDate, end ? end.getTime() / 1000 : undefined);
+  add(FIELD.days, offer.days);
+  add(FIELD.pricePerDay, car.pricePerDay);
+  add(FIELD.deposit, car.deposit);
+  if (offer.pickup) add(FIELD.pickupFee, offer.pickup.fee);
+  if (offer.dropoff) add(FIELD.returnFee, offer.dropoff.fee);
+  return fields;
 }
 
 // Менеджер создал подборку из сделки.
@@ -129,7 +159,9 @@ export async function onCarChosen(offer: Offer, car: OfferCar) {
           .then((data) => data.number?.trim() || undefined)
           .catch(() => undefined);
         const option = findCarOption(await getCarOptions(signal), { carId: String(car.id), carNumber, carName });
-        await updateLead(leadId, "chosen", option ? [{ field_id: FIELD.car, values: [{ value: option }] }] : [], signal);
+        const fields = chosenCarFields(offer, car);
+        if (option) fields.push({ field_id: FIELD.car, values: [{ value: option }] });
+        await updateLead(leadId, "chosen", fields, signal, car.pricePerDay * offer.days);
       })().catch((error) => console.error(`Offer choose: amoCRM lead ${leadId} failed:`, error))
     );
   }
