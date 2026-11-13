@@ -5,6 +5,7 @@ import type { Car } from "@/lib/cars";
 import { getCarFeatures } from "@/lib/car-features";
 import { canDeliver, ZONES } from "@/lib/delivery-rules";
 import { CarPhoto } from "@/components/car-photo";
+import type { LeadPrefill } from "@/lib/amo-offer-link";
 
 type Messenger = "whatsapp" | "telegram" | "instagram" | "max";
 
@@ -74,15 +75,15 @@ function defaultDate(offsetDays: number) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T10:00`;
 }
 
-export function OfferBuilder() {
-  const [start, setStart] = useState(() => defaultDate(1));
-  const [end, setEnd] = useState(() => defaultDate(8));
-  const [name, setName] = useState("");
+export function OfferBuilder({ prefill }: { prefill?: LeadPrefill | null }) {
+  const [start, setStart] = useState(() => prefill?.start ?? defaultDate(1));
+  const [end, setEnd] = useState(() => prefill?.end ?? defaultDate(8));
+  const [name, setName] = useState(prefill?.name ?? "");
   const [locale, setLocale] = useState<"ru" | "en">("ru");
-  const [pickupZoneId, setPickupZoneId] = useState("");
+  const [pickupZoneId, setPickupZoneId] = useState(prefill?.pickupZoneId ?? "");
   const [returnZoneId, setReturnZoneId] = useState("");
   const [messenger, setMessenger] = useState<Messenger>("whatsapp");
-  const [lead, setLead] = useState("");
+  const [lead, setLead] = useState(prefill?.leadUrl ?? "");
 
   const [cars, setCars] = useState<Car[] | null>(null);
   const [searchedFor, setSearchedFor] = useState<{ start: string; end: string } | null>(null);
@@ -225,6 +226,18 @@ export function OfferBuilder() {
       <p className="mt-1 text-sm text-foreground-muted">
         Даты → «Найти» → отметьте машины → «Создать ссылку» → вставьте сообщение клиенту в чат.
       </p>
+
+      {prefill && (
+        <p className="mt-4 rounded-lg bg-accent-soft px-4 py-2.5 text-sm text-accent-soft-foreground">
+          Открыто из сделки{" "}
+          <a href={prefill.leadUrl} target="_blank" rel="noopener noreferrer" className="font-medium underline">
+            №{prefill.leadId}
+          </a>
+          {prefill.start && prefill.end
+            ? ": даты, имя и район подставлены из сделки — проверьте и нажмите «Найти»."
+            : ": в сделке не заполнены даты — укажите их ниже."}
+        </p>
+      )}
 
       <form onSubmit={search} className="mt-5 grid gap-3 rounded-2xl border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-4">
         <div>

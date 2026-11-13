@@ -6,7 +6,7 @@ const TELEGRAM_TIMEOUT_MS = 10000;
 const NOTIFY_TAG = "Сайт";
 
 // The old site (katacars.info) emails its leads, and amoCRM turns them into "Неразобранное".
-const UNSORTED_STATUS_ID = 26442328;
+export const UNSORTED_STATUS_ID = 26442328;
 const OLD_SITE_MAIL_FROM = "help@katacars.info";
 const NOTIFIED_TAG = "Бот уведомил";
 const OLD_SITE_LABELS: Record<string, string> = {
