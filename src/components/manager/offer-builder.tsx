@@ -5,6 +5,7 @@ import type { Car } from "@/lib/cars";
 import { getCarFeatures } from "@/lib/car-features";
 import { canDeliver, ZONES } from "@/lib/delivery-rules";
 import { CarPhoto } from "@/components/car-photo";
+import { rentalCharge, rentalDays, rentalPeriod } from "@/lib/rental-days";
 import type { LeadPrefill } from "@/lib/amo-offer-link";
 
 type Messenger = "whatsapp" | "telegram" | "instagram" | "max";
@@ -34,9 +35,14 @@ function toUtc(value: string) {
   return Date.UTC(year, month - 1, day, hours, minutes);
 }
 
-// Так же, как считает сайт.
+// Как в RentProg: больше 4 часов сверх полных суток — ещё сутки.
 function daysBetween(start: string, end: string) {
-  return Math.max(Math.round((toUtc(end) - toUtc(start)) / 86400000), 1);
+  return rentalDays(toUtc(start), toUtc(end));
+}
+
+// Часы сверх полных суток (до 4) — за них почасовая доплата.
+function extraHoursBetween(start: string, end: string) {
+  return rentalPeriod(toUtc(start), toUtc(end)).extraHours;
 }
 
 function money(value: number) {
@@ -184,6 +190,7 @@ export function OfferBuilder({
 
   const datesValid = Boolean(start && end && toUtc(end) > toUtc(start));
   const days = datesValid ? daysBetween(start, end) : 0;
+  const extraHours = datesValid ? extraHoursBetween(start, end) : 0;
   const datesChanged = searchedFor && (searchedFor.start !== start || searchedFor.end !== end);
   const pickupZone = ZONES.find((zone) => zone.id === pickupZoneId);
   const returnZone = ZONES.find((zone) => zone.id === (returnZoneId || pickupZoneId));
@@ -434,7 +441,10 @@ export function OfferBuilder({
             {loading ? "Ищу свободные машины…" : "Найти свободные машины"}
           </button>
           {datesValid ? (
-            <span className="text-sm text-foreground-muted">{days} {dayWord(days)}</span>
+            <span className="text-sm text-foreground-muted">
+              {days} {dayWord(days)}
+              {extraHours > 0 && ` + ${extraHours} ч (почасовая доплата RentProg)`}
+            </span>
           ) : (
             <span className="text-sm text-red-600">Возврат должен быть позже получения</span>
           )}
@@ -464,6 +474,12 @@ export function OfferBuilder({
               const customValue = prices[car.id] ?? "";
               const customPrice = Number(customValue);
               const hasCustom = customValue !== "" && customPrice > 0 && customPrice !== car.pricePerDayThb;
+              const customCharge = rentalCharge(
+                searchedDays,
+                extraHoursBetween(searchedFor!.start, searchedFor!.end),
+                customPrice,
+                car.pricePerHourThb ?? 0
+              );
               return (
                 <div
                   key={car.id}
@@ -511,7 +527,8 @@ export function OfferBuilder({
                       <span>฿</span>
                       {hasCustom && (
                         <>
-                          <span className="font-medium text-foreground">= {money(customPrice * searchedDays)} за {searchedDays} {dayWord(searchedDays)}</span>
+                          <span className="font-medium text-foreground">= {money(customCharge.total)} за {customCharge.days} {dayWord(customCharge.days)}
+                            {customCharge.hours > 0 ? ` + ${customCharge.hours} ч` : ""}</span>
                           <button type="button" onClick={() => changePrice(car.id, "")} className="cursor-pointer text-accent underline">
                             вернуть цену RentProg
                           </button>

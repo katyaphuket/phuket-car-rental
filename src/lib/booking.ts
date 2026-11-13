@@ -11,6 +11,8 @@ export type BookingPayload = {
   returnZoneName: string;
   returnDateTime: string;
   days: number;
+  extraHours?: number; // часы сверх суток с почасовой доплатой (входят в rent)
+  pricePerDay?: number;
   name: string;
   phone: string;
   messenger: string;
@@ -37,4 +39,8 @@ export function yesNo(value: boolean) {
 export function mileageLabel(days: number) {
   if (days >= 5) return "Без ограничений";
   return `120 км/сутки, итого ${days * 120} км`;
+}
+
+export function periodLabel(days: number, extraHours = 0) {
+  return extraHours > 0 ? `${days} дней + ${extraHours} ч` : `${days} дней`;
 }

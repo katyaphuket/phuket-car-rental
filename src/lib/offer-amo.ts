@@ -2,7 +2,7 @@ import { amoFetch, FIELD, findCarOption, getCarOptions, isAmoConfigured } from "
 import { getDisplayName } from "@/lib/car-features";
 import { isLeadNotifyConfigured, sendToTelegram } from "@/lib/lead-notify";
 import { fetchCarData } from "@/lib/rentprog";
-import { formatRange, parseRentProgDate, type Offer, type OfferCar } from "@/lib/offer";
+import { formatRange, offerCharge, offerRent, parseRentProgDate, type Offer, type OfferCar } from "@/lib/offer";
 
 // Что подборка делает в amoCRM и Telegram: отправлена → «Отправлено предложение»,
 // клиент открыл → примечание, клиент выбрал машину → «Запросили документы», поле «Авто», Telegram.
@@ -42,9 +42,20 @@ function money(value: number) {
   return `${value.toLocaleString("ru-RU")} ฿`;
 }
 
-function carLine(car: OfferCar, days: number) {
+function carLine(car: OfferCar, offer: Pick<Offer, "days" | "extraHours">) {
   const custom = car.listPrice ? ` (своя цена, в RentProg ${money(car.listPrice)}/день)` : "";
-  return `• ${getDisplayName(car.id, car.name ?? "")} — ${money(car.pricePerDay)}/день, ${money(car.pricePerDay * days)}${custom}`;
+  const charge = offerCharge(offer, car);
+  const period =
+    charge.hours > 0 && car.pricePerHour
+      ? `, ${charge.days} дн. + ${charge.hours} ч по ${money(car.pricePerHour)}`
+      : charge.days !== offer.days
+        ? `, ${charge.days} дн. (часы дороже суток)`
+        : "";
+  return `• ${getDisplayName(car.id, car.name ?? "")} — ${money(car.pricePerDay)}/день${period}, итого ${money(charge.total)}${custom}`;
+}
+
+function periodText(offer: Offer) {
+  return `${offer.days} дн.${offer.extraHours ? ` + ${offer.extraHours} ч` : ""}`;
 }
 
 function leadUrl(leadId: number) {
@@ -99,7 +110,7 @@ export function chosenCarFields(offer: Offer, car: OfferCar): CustomField[] {
   const end = parseRentProgDate(offer.end);
   add(FIELD.startDate, start ? start.getTime() / 1000 : undefined);
   add(FIELD.endDate, end ? end.getTime() / 1000 : undefined);
-  add(FIELD.days, offer.days);
+  add(FIELD.days, offerCharge(offer, car).days);
   add(FIELD.pricePerDay, car.pricePerDay);
   add(FIELD.deposit, car.deposit);
   if (offer.pickup) add(FIELD.pickupFee, offer.pickup.fee);
@@ -115,8 +126,8 @@ export async function onOfferCreated(offer: Offer, url: string) {
     offer.leadId,
     [
       "📋 ОТПРАВЛЕНА ПОДБОРКА",
-      `Даты: ${formatRange(offer.start, offer.end, "ru")} (${offer.start} → ${offer.end}), ${offer.days} дн.`,
-      ...offer.cars.map((car) => carLine(car, offer.days)),
+      `Даты: ${formatRange(offer.start, offer.end, "ru")} (${offer.start} → ${offer.end}), ${periodText(offer)}`,
+      ...offer.cars.map((car) => carLine(car, offer)),
       "",
       url,
     ].join("\n"),
@@ -147,8 +158,8 @@ export async function onCarChosen(offer: Offer, car: OfferCar) {
           leadId,
           [
             "✅ КЛИЕНТ ВЫБРАЛ МАШИНУ В ПОДБОРКЕ",
-            `Даты: ${range} (${offer.start} → ${offer.end}), ${offer.days} дн.`,
-            carLine(car, offer.days),
+            `Даты: ${range} (${offer.start} → ${offer.end}), ${periodText(offer)}`,
+            carLine(car, offer),
             `Депозит: ${money(car.deposit)}`,
           ].join("\n"),
           signal
@@ -161,7 +172,8 @@ export async function onCarChosen(offer: Offer, car: OfferCar) {
         const option = findCarOption(await getCarOptions(signal), { carId: String(car.id), carNumber, carName });
         const fields = chosenCarFields(offer, car);
         if (option) fields.push({ field_id: FIELD.car, values: [{ value: option }] });
-        await updateLead(leadId, "chosen", fields, signal, car.pricePerDay * offer.days);
+        // Бюджет — вся аренда, с почасовой доплатой, без доставки.
+        await updateLead(leadId, "chosen", fields, signal, offerRent(offer, car));
       })().catch((error) => console.error(`Offer choose: amoCRM lead ${leadId} failed:`, error))
     );
   }
@@ -174,8 +186,8 @@ export async function onCarChosen(offer: Offer, car: OfferCar) {
           "",
           offer.name ? `Клиент: ${offer.name}` : null,
           `Машина: ${carName}`,
-          `Даты: ${range}, ${offer.days} дн.`,
-          `Цена: ${money(car.pricePerDay)}/день, ${money(car.pricePerDay * offer.days)}`,
+          `Даты: ${range}, ${periodText(offer)}`,
+          `Цена: ${money(car.pricePerDay)}/день, итого ${money(offerRent(offer, car))}`,
           "",
           offer.leadId ? leadUrl(offer.leadId) : "Сделка в подборке не указана — клиент напишет в мессенджер.",
         ]

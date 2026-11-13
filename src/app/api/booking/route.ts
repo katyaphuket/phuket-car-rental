@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createAmoLead, isAmoConfigured } from "@/lib/amocrm";
-import { type BookingPayload, mileageLabel, money, yesNo } from "@/lib/booking";
+import { type BookingPayload, mileageLabel, money, periodLabel, yesNo } from "@/lib/booking";
 
 function buildEmailHtml(data: BookingPayload) {
   return `
@@ -16,7 +16,7 @@ function buildEmailHtml(data: BookingPayload) {
       <h3 style="border-top: 1px solid #e4e0d6; padding-top: 12px; margin-bottom: 6px;">ДЕТАЛИ АРЕНДЫ</h3>
       <p style="margin: 2px 0;">Получение: ${data.pickupZoneName} · ${data.pickupDateTime}</p>
       <p style="margin: 2px 0;">Возврат: ${data.returnZoneName} · ${data.returnDateTime}</p>
-      <p style="margin: 2px 0;">Срок: ${data.days} дней</p>
+      <p style="margin: 2px 0;">Срок: ${periodLabel(data.days, data.extraHours)}</p>
 
       <h3 style="border-top: 1px solid #e4e0d6; padding-top: 12px; margin-bottom: 6px;">КЛИЕНТ</h3>
       <p style="margin: 2px 0;">Имя: ${data.name}</p>

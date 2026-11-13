@@ -5,6 +5,7 @@ import { useLocale } from "@/lib/locale-context";
 import type { Car, Delivery } from "@/lib/cars";
 import { getCarFeatures } from "@/lib/car-features";
 import { CAR_PRIORITY } from "@/lib/car-priority";
+import { rentalDays } from "@/lib/rental-days";
 import { canDeliver, getRequiredDays, isShortRentalCar, SHORT_RENTAL_MIN_DAYS, ZONES } from "@/lib/delivery-rules";
 import { CarCard } from "./car-card";
 import { CarModal } from "./car-modal";
@@ -55,7 +56,7 @@ function formatRentProgDate(date: Date) {
 }
 
 function daysBetween(range: { start: Date; end: Date }) {
-  return Math.max(Math.round((range.end.getTime() - range.start.getTime()) / 86400000), 1);
+  return rentalDays(range.start.getTime(), range.end.getTime());
 }
 
 function CarCardSkeleton() {

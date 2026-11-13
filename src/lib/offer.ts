@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { readdirSync } from "fs";
 import path from "path";
+import { rentalCharge } from "./rental-days";
 
 // Персональная подборка машин для клиента. Вся подборка (даты, машины, цены на момент
 // отправки) лежит прямо в ссылке и подписана, поэтому базы данных не нужно, а клиент
@@ -16,8 +17,16 @@ export type Messenger = "whatsapp" | "telegram" | "instagram" | "max";
 export const MESSENGERS: Messenger[] = ["whatsapp", "telegram", "instagram", "max"];
 
 // listPrice — цена RentProg, если менеджер поставил свою (pricePerDay);
+// pricePerHour — почасовая доплата (только если в подборке есть extraHours);
 // name — только для машин, которых нет в knowledge/cars.json
-export type OfferCar = { id: number; pricePerDay: number; deposit: number; listPrice?: number; name?: string };
+export type OfferCar = {
+  id: number;
+  pricePerDay: number;
+  deposit: number;
+  pricePerHour?: number;
+  listPrice?: number;
+  name?: string;
+};
 export type OfferZone = { id: string; fee: number };
 
 export type Offer = {
@@ -31,13 +40,26 @@ export type Offer = {
   messenger: Messenger;
   leadId?: number;
   createdAt: number; // unix, секунды
+  extraHours?: number; // часы сверх полных суток (до 4) с почасовой доплатой
   cars: OfferCar[];
 };
+
+// Что берём за эту машину: сутки по цене подборки + почасовая доплата
+// (часы дороже суток — ещё сутки вместо часов).
+export function offerCharge(offer: Pick<Offer, "days" | "extraHours">, car: OfferCar, pricePerDay = car.pricePerDay) {
+  return rentalCharge(offer.days, offer.extraHours ?? 0, pricePerDay, car.pricePerHour ?? 0);
+}
+
+export function offerRent(offer: Pick<Offer, "days" | "extraHours">, car: OfferCar, pricePerDay = car.pricePerDay) {
+  return offerCharge(offer, car, pricePerDay).total;
+}
 
 // Подборка в ссылке — одна строка с полями через «|», чтобы ссылка была короче:
 // даты|дни|язык|имя|доставка|возврат|мессенджер|сделка|создана|машины
 // дата "2612101000" = 10.12.2026 10:00; зона "airport:1000";
-// машина "70264:950:6000[:цена RentProg, если менеджер поменял цену[:название]]"
+// машина "70264:950:6000[:цена RentProg, если менеджер поменял цену[:название]]".
+// Если есть почасовая доплата — 12-е поле «часы», а в машине после депозита идёт цена часа:
+// "70264:950:6000:400[:цена RentProg[:название]]". Старые ссылки (11 полей) открываются как раньше.
 const MESSENGER_CODES: Record<Messenger, string> = { whatsapp: "w", telegram: "t", instagram: "i", max: "m" };
 const DATE_PATTERN = /^(\d{2})-(\d{2})-(\d{4}) (\d{1,2}):(\d{2})$/;
 
@@ -91,10 +113,12 @@ export function cleanName(value: string | undefined) {
 }
 
 export function encodeOffer(offer: Offer) {
+  const hasHours = (offer.extraHours ?? 0) > 0;
   const cars = offer.cars
     .slice(0, MAX_CARS)
     .map((car) => {
       const parts: (string | number)[] = [car.id, car.pricePerDay, car.deposit];
+      if (hasHours) parts.push(car.pricePerHour ?? 0);
       if (car.listPrice || car.name) parts.push(car.listPrice ?? "");
       if (car.name) parts.push(packText(car.name));
       return parts.join(":");
@@ -112,6 +136,7 @@ export function encodeOffer(offer: Offer) {
     offer.leadId ?? "",
     offer.createdAt.toString(36),
     cars,
+    ...(hasHours ? [offer.extraHours!] : []),
   ];
   const body = Buffer.from(fields.join("|")).toString("base64url");
   return `${body}.${sign(body)}`;
@@ -123,18 +148,22 @@ export function decodeOffer(token: string): Offer | null {
 
   try {
     const fields = Buffer.from(body, "base64url").toString("utf8").split("|");
-    if (fields.length !== 11) return null;
-    const [start, end, days, locale, name, pickup, dropoff, messengerCode, leadId, createdAt, cars] = fields;
+    if (fields.length !== 11 && fields.length !== 12) return null;
+    const [start, end, days, locale, name, pickup, dropoff, messengerCode, leadId, createdAt, cars, hoursField] = fields;
+    const extraHours = Number(hoursField) || 0;
     const messenger = MESSENGERS.find((item) => MESSENGER_CODES[item] === messengerCode) ?? "whatsapp";
     const parsedCars = cars
       .split(",")
       .filter(Boolean)
       .map((item) => {
-        const [id, pricePerDay, deposit, listPrice, carName] = item.split(":");
+        const parts = item.split(":");
+        const [id, pricePerDay, deposit] = parts;
+        const [pricePerHour, listPrice, carName] = extraHours > 0 ? parts.slice(3) : [undefined, ...parts.slice(3)];
         return {
           id: Number(id),
           pricePerDay: Number(pricePerDay),
           deposit: Number(deposit),
+          pricePerHour: Number(pricePerHour) || undefined,
           listPrice: Number(listPrice) || undefined,
           name: carName || undefined,
         };
@@ -151,6 +180,7 @@ export function decodeOffer(token: string): Offer | null {
       messenger,
       leadId: Number(leadId) || undefined,
       createdAt: parseInt(createdAt, 36),
+      ...(extraHours > 0 ? { extraHours } : {}),
       cars: parsedCars,
     };
   } catch {

@@ -1,4 +1,5 @@
 import type { RentProgCarData, RentProgFreeCar } from "./rentprog";
+import { rentalCharge } from "./rental-days";
 
 export type Car = {
   id: string;
@@ -6,8 +7,11 @@ export type Car = {
   number?: string;
   classKey: "economy" | "crossover" | "premium";
   pricePerDayThb: number;
-  pricePerPeriodThb: number;
+  pricePerPeriodThb: number; // аренда за весь срок, вместе с почасовой доплатой
   depositThb: number;
+  extraHours?: number; // часы сверх полных суток (до 4), за которые берём почасовую доплату
+  pricePerHourThb?: number;
+  chargedDays?: number; // если часы вышли дороже суток — берём сутки: дней на одни больше
   transmission?: string;
   popular?: boolean;
 };
@@ -32,16 +36,21 @@ function mapClassKey(carClass: string | null, name: string): Car["classKey"] {
   return "economy";
 }
 
-export function mapRentProgCar(free: RentProgFreeCar, data: RentProgCarData, days: number): Car {
+export function mapRentProgCar(free: RentProgFreeCar, data: RentProgCarData, days: number, extraHours = 0): Car {
   const name = data.car_name || free.car_name;
+  const pricePerHour = Number(data.price_hour) || 0;
+  const charge = rentalCharge(Math.max(days, 1), extraHours, data.selected_price, pricePerHour);
   return {
     id: String(free.id),
     name,
     number: data.number?.trim() || undefined,
     classKey: mapClassKey(data.car_class, name),
     pricePerDayThb: data.selected_price,
-    pricePerPeriodThb: data.selected_price * Math.max(days, 1),
+    pricePerPeriodThb: charge.total,
     depositThb: data.deposit,
     transmission: data.transmission || free.transmission,
+    ...(extraHours > 0 && pricePerHour > 0 ? { pricePerHourThb: pricePerHour } : {}),
+    ...(charge.hours > 0 ? { extraHours: charge.hours } : {}),
+    ...(charge.days !== Math.max(days, 1) ? { chargedDays: charge.days } : {}),
   };
 }

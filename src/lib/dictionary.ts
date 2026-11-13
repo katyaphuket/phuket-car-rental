@@ -120,7 +120,7 @@ export type Dictionary = {
     driverTitle: string;
     driver: { age: string; experience: string; documents: string };
     summary: {
-      rent: (days: number) => string;
+      rent: (days: number, hours?: number) => string;
       pickupDelivery: string;
       returnDelivery: string;
       wash: string;
@@ -324,7 +324,8 @@ export const dictionary: Record<Locale, Dictionary> = {
         documents: "Загранпаспорт + водительские права",
       },
       summary: {
-        rent: (days: number) => `Аренда за период (${days} ${days === 1 ? "день" : days < 5 ? "дня" : "дней"})`,
+        rent: (days: number, hours = 0) =>
+          `Аренда за период (${days} ${days === 1 ? "день" : days < 5 ? "дня" : "дней"}${hours > 0 ? ` + ${hours} ч` : ""})`,
         pickupDelivery: "Доставка при получении",
         returnDelivery: "Возврат",
         wash: "Мойка при возврате",
@@ -620,7 +621,8 @@ export const dictionary: Record<Locale, Dictionary> = {
         documents: "Passport + driving licence",
       },
       summary: {
-        rent: (days: number) => `Rental for the period (${days} day${days === 1 ? "" : "s"})`,
+        rent: (days: number, hours = 0) =>
+          `Rental for the period (${days} day${days === 1 ? "" : "s"}${hours > 0 ? ` + ${hours} h` : ""})`,
         pickupDelivery: "Delivery on pickup",
         returnDelivery: "Return",
         wash: "Wash on return",

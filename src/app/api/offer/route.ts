@@ -1,6 +1,7 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { onOfferCreated } from "@/lib/offer-amo";
 import { fetchCarData } from "@/lib/rentprog";
+import { rentProgPeriod } from "@/lib/rental-days";
 import { ZONES } from "@/lib/delivery-rules";
 import { CAR_FEATURES } from "@/lib/car-features";
 import {
@@ -59,6 +60,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Отметьте хотя бы одну машину" }, { status: 400 });
   }
 
+  // Часы сверх полных суток (до 4) — почасовая доплата, как в RentProg.
+  const period = rentProgPeriod(body.start, body.end);
+  const extraHours = period && period.days === days ? period.extraHours : 0;
+
   // Цены берём из RentProg заново, а не из браузера менеджера; своя цена менеджера — поверх.
   const cars = [];
   for (const id of carIds) {
@@ -71,6 +76,7 @@ export async function POST(request: NextRequest) {
         pricePerDay: changed ? manual : data.selected_price,
         deposit: data.deposit,
         listPrice: changed ? data.selected_price : undefined,
+        pricePerHour: extraHours > 0 ? Number(data.price_hour) || 0 : undefined,
         name: CAR_FEATURES[id] ? undefined : data.car_name,
       });
     } catch (error) {
@@ -95,6 +101,7 @@ export async function POST(request: NextRequest) {
     messenger,
     leadId,
     createdAt: Math.floor(Date.now() / 1000),
+    extraHours: extraHours > 0 ? extraHours : undefined,
     cars,
   };
   const url = `${offerBaseUrl(request.nextUrl.origin)}/o/${encodeOffer(offer)}`;

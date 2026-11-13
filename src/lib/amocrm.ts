@@ -1,5 +1,5 @@
 import { after } from "next/server";
-import { type BookingPayload, mileageLabel, money, yesNo } from "@/lib/booking";
+import { type BookingPayload, mileageLabel, money, periodLabel, yesNo } from "@/lib/booking";
 
 // amoCRM takes 1-3 seconds per request. The booking form gives up after 10 seconds,
 // and the email still has to go out after this.
@@ -171,7 +171,8 @@ function buildCustomFields(data: BookingPayload) {
   add(FIELD.startDate, toTimestamp(data.pickupDateTime));
   add(FIELD.endDate, toTimestamp(data.returnDateTime));
   add(FIELD.days, data.days);
-  add(FIELD.pricePerDay, data.days > 0 ? Math.round(data.rent / data.days) : undefined);
+  // Цена за сутки — без почасовой доплаты (она входит в rent).
+  add(FIELD.pricePerDay, data.pricePerDay ?? (data.days > 0 ? Math.round(data.rent / data.days) : undefined));
   add(FIELD.pickupMethod, data.pickupZoneId === OFFICE_ZONE_ID ? "Самовывоз" : data.pickupZoneId && "Доставка");
   add(FIELD.pickupDistrict, data.pickupZoneId ? DISTRICT_BY_ZONE[data.pickupZoneId] : undefined);
   add(FIELD.pickupLocation, data.pickupZoneName?.slice(0, TEXT_FIELD_LIMIT));
@@ -192,7 +193,7 @@ function buildNoteText(data: BookingPayload) {
     `Номер машины: ${data.carNumber || "не указан в RentProg"}`,
     `Получение: ${data.pickupZoneName} · ${data.pickupDateTime}`,
     `Возврат: ${data.returnZoneName} · ${data.returnDateTime}`,
-    `Срок: ${data.days} дней`,
+    `Срок: ${periodLabel(data.days, data.extraHours)}`,
     "",
     `Имя: ${data.name}`,
     `Телефон: ${data.phone}`,

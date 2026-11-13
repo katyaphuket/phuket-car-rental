@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { fetchCarData, fetchFreeCars } from "@/lib/rentprog";
 import { mapRentProgCar, type Car } from "@/lib/cars";
 import { CAR_PRIORITY } from "@/lib/car-priority";
+import { rentProgPeriod } from "@/lib/rental-days";
 
 const CONCURRENCY_LIMIT = 5;
 
@@ -37,13 +38,18 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Часы сверх полных суток (до 4) — почасовая доплата, как в RentProg.
+  // Только если присланные дни совпадают с нашим подсчётом по датам.
+  const period = rentProgPeriod(startDate, endDate);
+  const extraHours = period && period.days === days ? period.extraHours : 0;
+
   try {
     const freeCars = await fetchFreeCars(startDate, endDate);
 
     const results = await mapWithConcurrency(freeCars, CONCURRENCY_LIMIT, async (free) => {
       try {
         const data = await fetchCarData(free.id, startDate, endDate, days);
-        return mapRentProgCar(free, data, days);
+        return mapRentProgCar(free, data, days, extraHours);
       } catch (error) {
         console.error(`RentProg car_data failed for car ${free.id}:`, error);
         return null;

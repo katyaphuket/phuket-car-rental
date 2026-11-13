@@ -194,7 +194,9 @@ export function CarModal({
           returnZoneId: returnZone.id,
           returnZoneName: returnZone.name[locale],
           returnDateTime: formatDateTime(range.end),
-          days,
+          days: car.chargedDays ?? days,
+          extraHours: car.extraHours ?? 0,
+          pricePerDay: car.pricePerDayThb,
           name,
           phone,
           messenger: messengerLabel(messenger),
@@ -295,7 +297,7 @@ export function CarModal({
       <div className="flex h-full flex-col justify-between rounded-2xl border border-border bg-surface-muted p-4 sm:p-5">
         <div className="space-y-2 text-sm">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-foreground-muted">{t.carModal.summary.rent(days)}</span>
+            <span className="text-foreground-muted">{t.carModal.summary.rent(car.chargedDays ?? days, car.extraHours)}</span>
             <span className="whitespace-nowrap font-medium text-foreground">{money(rentTotal)}</span>
           </div>
           <div className="flex items-center justify-between gap-2">

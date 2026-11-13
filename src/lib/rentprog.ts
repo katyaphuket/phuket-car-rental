@@ -15,6 +15,7 @@ export type RentProgCarData = {
   transmission: string | null;
   selected_price: number;
   deposit: number;
+  price_hour?: number | null; // доплата за час, если возврат позже до hours_limit часов
   hours_limit?: number;
 };
 

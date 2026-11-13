@@ -12,6 +12,8 @@ import {
   formatTime,
   isOfferExpired,
   listCarPhotos,
+  offerCharge,
+  offerRent,
   messengerLink,
   type Offer,
   type OfferZone,
@@ -145,7 +147,7 @@ export default async function OfferPage({ params }: PageProps) {
           {dropoffName && <p className="text-xs text-foreground-muted">{dropoffName}</p>}
         </div>
         <p className="col-span-2 border-t border-border pt-2 text-xs text-foreground-muted">
-          {copy.days(offer.days)} · {copy.mileage(offer.days)}
+          {copy.days(offer.days, offer.extraHours)} · {copy.mileage(offer.days)}
         </p>
       </div>
 
@@ -160,7 +162,8 @@ export default async function OfferPage({ params }: PageProps) {
         {offer.cars.map((car, carIndex) => {
           const features = translateCarFeatures(getCarFeatures(car.id, car.name ?? ""), locale);
           const photos = listCarPhotos(car.id);
-          const rent = car.pricePerDay * offer.days;
+          const charge = offerCharge(offer, car);
+          const rent = charge.total;
           // Менеджер снизил цену — показываем обычную зачёркнутой.
           const oldPrice = car.listPrice && car.listPrice > car.pricePerDay ? car.listPrice : undefined;
           const discountPercent = oldPrice ? Math.round((1 - car.pricePerDay / oldPrice) * 100) : 0;
@@ -218,10 +221,11 @@ export default async function OfferPage({ params }: PageProps) {
 
                 <dl className="mt-4 space-y-1.5 rounded-xl bg-background p-3 text-sm">
                   <div className="flex justify-between">
-                    <dt className="text-foreground-muted">{copy.rent(offer.days)}</dt>
+                    <dt className="text-foreground-muted">{copy.rent(charge.days, charge.hours)}</dt>
                     <dd className="text-foreground">
-                      {oldPrice && <s className="mr-1.5 text-xs text-foreground-faint">{money(oldPrice * offer.days, locale)}</s>}
-                      {money(rent, locale)} <span className="text-xs text-foreground-muted">({money(car.pricePerDay, locale)}{copy.perDay})</span>
+                      {oldPrice && <s className="mr-1.5 text-xs text-foreground-faint">{money(offerRent(offer, car, oldPrice), locale)}</s>}
+                      {money(rent, locale)} <span className="text-xs text-foreground-muted">({money(car.pricePerDay, locale)}{copy.perDay}
+                        {charge.hours > 0 && car.pricePerHour ? ` + ${money(car.pricePerHour, locale)}${copy.perHour}` : ""})</span>
                     </dd>
                   </div>
                   {offer.pickup && (
