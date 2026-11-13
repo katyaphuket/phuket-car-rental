@@ -122,7 +122,7 @@ async function findContactIdByPhone(phone: string, signal: AbortSignal) {
 
 let cachedCarOptions: { values: string[]; expiresAt: number } | null = null;
 
-async function getCarOptions(signal: AbortSignal) {
+export async function getCarOptions(signal: AbortSignal) {
   if (cachedCarOptions && cachedCarOptions.expiresAt > Date.now()) {
     return cachedCarOptions.values;
   }
@@ -142,7 +142,7 @@ function findOptionByNumber(options: string[], number: string | undefined) {
 }
 
 // Options change as the fleet changes, so a new option with the plate number is found on its own.
-function findCarOption(options: string[], data: BookingPayload) {
+export function findCarOption(options: string[], data: Pick<BookingPayload, "carId" | "carNumber" | "carName">) {
   const fromTable = data.carId ? CAR_OPTION_BY_ID[data.carId] : undefined;
   if (fromTable && options.includes(fromTable)) return fromTable;
 

@@ -135,7 +135,7 @@ function buildOldSiteMessage(leadId: number, summary: string) {
   ].join("\n");
 }
 
-async function sendToTelegram(text: string) {
+export async function sendToTelegram(text: string) {
   const res = await fetch(
     `https://api.telegram.org/bot${process.env.AMO_NOTIFY_TELEGRAM_TOKEN}/sendMessage`,
     {

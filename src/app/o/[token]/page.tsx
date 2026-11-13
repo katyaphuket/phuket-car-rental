@@ -19,6 +19,7 @@ import {
 import { OFFER_COPY } from "@/lib/offer-copy";
 import { Logo } from "@/components/logo";
 import { ChooseButton } from "@/components/offer/choose-button";
+import { ViewTracker } from "@/components/offer/view-tracker";
 
 const AVAILABILITY_TIMEOUT_MS = 4000;
 
@@ -121,6 +122,7 @@ export default async function OfferPage({ params }: PageProps) {
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 pb-16 pt-6">
+      {!expired && <ViewTracker token={token} />}
       <header className="flex items-center justify-between">
         <Logo dark />
         <a href={contactHref} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-accent">

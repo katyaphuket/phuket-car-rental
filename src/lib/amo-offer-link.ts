@@ -1,5 +1,6 @@
 import { amoFetch, FIELD, isAmoConfigured } from "@/lib/amocrm";
 import { ZONES } from "@/lib/delivery-rules";
+import type { Messenger } from "@/lib/offer";
 
 // Поле-ссылка «🚗 Подобрать авто» в карточке сделки amoCRM. Сайт сам вписывает в него
 // адрес /manager?lead=<id>, а страница менеджера по этому адресу заполняет даты и имя из сделки.
@@ -95,7 +96,34 @@ export type LeadPrefill = {
   end?: string;
   name?: string;
   pickupZoneId?: string;
+  messenger?: Messenger; // где клиент переписывается с нами — туда и ведёт кнопка «Хочу эту машину»
 };
+
+// Метка канала переписки в amoCRM (Wazzup) -> мессенджер.
+// Проверено на переписках KataCars: com.wazzup24-1 — Telegram, com.wazzup24.wz — WhatsApp.
+const MESSENGER_BY_ORIGIN: Record<string, Messenger> = {
+  "com.wazzup24-1": "telegram",
+  "com.wazzup24.wz": "whatsapp",
+  "com.wazzap24": "whatsapp",
+  instagram_business: "instagram",
+};
+
+type AmoTalk = { origin?: string; entity_id?: number | null; updated_at?: number };
+
+// Мессенджер последней переписки по этой сделке (или с этим контактом).
+export function pickMessenger(talks: AmoTalk[], leadId: number): Messenger | undefined {
+  const known = talks.filter((talk) => talk.origin && MESSENGER_BY_ORIGIN[talk.origin]);
+  const forLead = known.filter((talk) => talk.entity_id === leadId);
+  const latest = (forLead.length > 0 ? forLead : known).sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0))[0];
+  return latest ? MESSENGER_BY_ORIGIN[latest.origin!] : undefined;
+}
+
+async function findMessenger(contactId: number, leadId: number, signal: AbortSignal) {
+  const res = await amoFetch(`talks?filter[contact_id]=${contactId}&limit=50`, signal);
+  if (res.status === 204) return undefined;
+  const body: { _embedded?: { talks?: AmoTalk[] } } = await res.json();
+  return pickMessenger(body._embedded?.talks ?? [], leadId);
+}
 
 type AmoField = { field_id?: number; values?: { value?: string | number }[] };
 
@@ -136,7 +164,12 @@ export async function loadLeadPrefill(leadIdRaw: string | undefined): Promise<Le
     const contacts = lead._embedded?.contacts ?? [];
     const contactId = (contacts.find((contact) => contact.is_main) ?? contacts[0])?.id;
     let name: string | undefined;
+    let messenger: Messenger | undefined;
     if (contactId) {
+      messenger = await findMessenger(contactId, leadId, signal).catch((error) => {
+        console.error(`Offer prefill: amoCRM talks for lead ${leadId} failed:`, error);
+        return undefined;
+      });
       const contactRes = await amoFetch(`contacts/${contactId}`, signal).catch(() => null);
       const contact: { name?: string } | null = contactRes ? await contactRes.json().catch(() => null) : null;
       name = cleanContactName(contact?.name);
@@ -148,6 +181,7 @@ export async function loadLeadPrefill(leadIdRaw: string | undefined): Promise<Le
       start: toLocalInput(fieldValue(fields, FIELD.startDate)),
       end: toLocalInput(fieldValue(fields, FIELD.endDate)),
       name,
+      messenger,
       pickupZoneId: pickupZoneId && ZONES.some((zone) => zone.id === pickupZoneId) ? pickupZoneId : undefined,
     };
   } catch (error) {

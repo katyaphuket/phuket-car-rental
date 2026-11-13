@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
+import { onOfferCreated } from "@/lib/offer-amo";
 import { fetchCarData } from "@/lib/rentprog";
 import { ZONES } from "@/lib/delivery-rules";
 import { CAR_FEATURES } from "@/lib/car-features";
@@ -9,6 +10,7 @@ import {
   MANAGER_COOKIE,
   MESSENGERS,
   type Messenger,
+  type Offer,
   type OfferZone,
   offerBaseUrl,
   parseRentProgDate,
@@ -82,7 +84,7 @@ export async function POST(request: NextRequest) {
   const messenger = MESSENGERS.includes(body.messenger as Messenger) ? (body.messenger as Messenger) : "whatsapp";
   const leadId = Number(body.lead?.match(/(\d{4,})\D*$/)?.[1]) || undefined;
 
-  const token = encodeOffer({
+  const offer: Offer = {
     start: body.start,
     end: body.end,
     days,
@@ -94,10 +96,14 @@ export async function POST(request: NextRequest) {
     leadId,
     createdAt: Math.floor(Date.now() / 1000),
     cars,
-  });
+  };
+  const url = `${offerBaseUrl(request.nextUrl.origin)}/o/${encodeOffer(offer)}`;
+
+  // Подборка из сделки: примечание со ссылкой и этап «Отправлено предложение».
+  after(() => onOfferCreated(offer, url).catch((error) => console.error("Offer created: amoCRM update failed:", error)));
 
   return NextResponse.json({
-    url: `${offerBaseUrl(request.nextUrl.origin)}/o/${token}`,
+    url,
     missing: carIds.length - cars.length,
   });
 }

@@ -7,9 +7,18 @@ type ChooseButtonProps = {
   carId: number;
 };
 
-// Открывает мессенджер с готовым сообщением и тихо сообщает сайту, какую машину выбрал клиент.
+// Открывает мессенджер с готовым сообщением и тихо сообщает сайту, какую машину выбрал клиент
+// (примечание и этап в amoCRM, сообщение менеджерам в Telegram).
 export function ChooseButton({ href, label, token, carId }: ChooseButtonProps) {
   function report() {
+    // Повторные нажатия на ту же машину не дублируют уведомления менеджерам.
+    const key = `kc-offer-chosen:${token.slice(-16)}:${carId}`;
+    try {
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, "1");
+    } catch {
+      // без localStorage просто отправим
+    }
     const body = JSON.stringify({ token, carId });
     try {
       if (!navigator.sendBeacon?.("/api/offer/choose", new Blob([body], { type: "application/json" }))) {

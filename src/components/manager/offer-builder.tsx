@@ -82,7 +82,8 @@ export function OfferBuilder({ prefill }: { prefill?: LeadPrefill | null }) {
   const [locale, setLocale] = useState<"ru" | "en">("ru");
   const [pickupZoneId, setPickupZoneId] = useState(prefill?.pickupZoneId ?? "");
   const [returnZoneId, setReturnZoneId] = useState("");
-  const [messenger, setMessenger] = useState<Messenger>("whatsapp");
+  // Из сделки — мессенджер, где клиент уже переписывается; иначе последний выбранный менеджером.
+  const [messenger, setMessenger] = useState<Messenger>(prefill?.messenger ?? "whatsapp");
   const [lead, setLead] = useState(prefill?.leadUrl ?? "");
 
   const [cars, setCars] = useState<Car[] | null>(null);
@@ -98,6 +99,7 @@ export function OfferBuilder({ prefill }: { prefill?: LeadPrefill | null }) {
   const [copied, setCopied] = useState<"" | "message" | "link">("");
 
   useEffect(() => {
+    if (prefill?.messenger) return;
     try {
       const saved = localStorage.getItem(MESSENGER_STORAGE_KEY) as Messenger | null;
       // eslint-disable-next-line react-hooks/set-state-in-effect -- restore the manager's last choice after mount
@@ -105,7 +107,7 @@ export function OfferBuilder({ prefill }: { prefill?: LeadPrefill | null }) {
     } catch {
       // localStorage недоступен — ничего страшного
     }
-  }, []);
+  }, [prefill?.messenger]);
 
   function changeMessenger(value: Messenger) {
     setMessenger(value);
@@ -236,6 +238,9 @@ export function OfferBuilder({ prefill }: { prefill?: LeadPrefill | null }) {
           {prefill.start && prefill.end
             ? ": даты, имя и район подставлены из сделки — проверьте и нажмите «Найти»."
             : ": в сделке не заполнены даты — укажите их ниже."}
+          {prefill.messenger
+            ? ` Клиент пишет в ${MESSENGER_LABELS[prefill.messenger]} — кнопка «Хочу эту машину» поведёт туда же.`
+            : " Не нашла переписку с клиентом — выберите мессенджер вручную."}
         </p>
       )}
 

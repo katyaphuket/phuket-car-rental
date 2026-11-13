@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { leadsWithoutOfferLink, managerLinkForLead } from "./amo-offer-link";
+import { leadsWithoutOfferLink, managerLinkForLead, pickMessenger } from "./amo-offer-link";
 
 const FIELD_ID = 555;
 
@@ -33,5 +33,26 @@ describe("поле «Подобрать авто» в сделке", () => {
 
   it("ссылка ведёт на страницу менеджера с номером сделки", () => {
     expect(managerLinkForLead(42)).toBe("https://phuketrentcar.com/manager?lead=42");
+  });
+});
+
+describe("мессенджер клиента из сделки", () => {
+  // Переписки тестовой сделки KataCars: последняя — в Telegram.
+  const talks = [
+    { origin: "com.wazzup24-1", entity_id: 42978437, updated_at: 1794547898 },
+    { origin: "com.wazzup24.wz", entity_id: 42978437, updated_at: 1767665129 },
+    { origin: "com.wazzup24.wz", entity_id: null, updated_at: 1799999999 },
+  ];
+
+  it("берёт последнюю переписку по этой сделке", () => {
+    expect(pickMessenger(talks, 42978437)).toBe("telegram");
+  });
+
+  it("если по сделке переписки нет — последнюю с контактом", () => {
+    expect(pickMessenger(talks, 1)).toBe("whatsapp");
+  });
+
+  it("незнакомый канал — менеджер выбирает сам", () => {
+    expect(pickMessenger([{ origin: "something.else", entity_id: 1, updated_at: 1 }], 1)).toBeUndefined();
   });
 });
