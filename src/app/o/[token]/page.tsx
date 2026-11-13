@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { Suspense } from "react";
 import { fetchFreeCars } from "@/lib/rentprog";
 import { getCarFeatures, translateCarFeatures } from "@/lib/car-features";
 import { ZONES } from "@/lib/delivery-rules";
@@ -65,6 +66,22 @@ async function findTakenCars(offer: Offer) {
   }
 }
 
+async function CarAction({
+  takenPromise,
+  carId,
+  takenLabel,
+  button,
+}: {
+  takenPromise: Promise<Set<number>>;
+  carId: number;
+  takenLabel: string;
+  button: React.ReactNode;
+}) {
+  const taken = await takenPromise;
+  if (!taken.has(carId)) return button;
+  return <p className="rounded-xl bg-surface-muted px-4 py-3 text-center text-sm text-foreground-muted">{takenLabel}</p>;
+}
+
 function money(value: number, locale: "ru" | "en") {
   return `${value.toLocaleString(locale === "en" ? "en-US" : "ru-RU")} ฿`;
 }
@@ -94,7 +111,8 @@ export default async function OfferPage({ params }: PageProps) {
   const { locale } = offer;
   const copy = OFFER_COPY[locale];
   const expired = isOfferExpired(offer);
-  const taken = expired ? new Set<number>() : await findTakenCars(offer);
+  // Страница показывается сразу, а занятые машины помечаются, когда ответит RentProg.
+  const takenPromise = expired ? Promise.resolve(new Set<number>()) : findTakenCars(offer);
   const range = formatRange(offer.start, offer.end, locale);
   const pickupName = zoneName(offer.pickup, locale);
   const dropoffName = zoneName(offer.dropoff, locale);
@@ -144,11 +162,10 @@ export default async function OfferPage({ params }: PageProps) {
           // Менеджер снизил цену — показываем обычную зачёркнутой.
           const oldPrice = car.listPrice && car.listPrice > car.pricePerDay ? car.listPrice : undefined;
           const discountPercent = oldPrice ? Math.round((1 - car.pricePerDay / oldPrice) * 100) : 0;
-          const isTaken = taken.has(car.id);
           const chooseHref = messengerLink(offer.messenger, copy.chooseMessage(features.displayName, range));
 
           return (
-            <article key={car.id} className={`overflow-hidden rounded-2xl border border-border bg-surface ${isTaken ? "opacity-60" : ""}`}>
+            <article key={car.id} className="overflow-hidden rounded-2xl border border-border bg-surface">
               {photos.length > 0 ? (
                 <div className="flex snap-x snap-mandatory overflow-x-auto">
                   {photos.map((src, index) => (
@@ -228,11 +245,14 @@ export default async function OfferPage({ params }: PageProps) {
                 </dl>
 
                 <div className="mt-4">
-                  {isTaken ? (
-                    <p className="rounded-xl bg-surface-muted px-4 py-3 text-center text-sm text-foreground-muted">{copy.taken}</p>
-                  ) : (
-                    <ChooseButton href={chooseHref} label={copy.choose} token={token} carId={car.id} />
-                  )}
+                  <Suspense fallback={<ChooseButton href={chooseHref} label={copy.choose} token={token} carId={car.id} />}>
+                    <CarAction
+                      takenPromise={takenPromise}
+                      carId={car.id}
+                      takenLabel={copy.taken}
+                      button={<ChooseButton href={chooseHref} label={copy.choose} token={token} carId={car.id} />}
+                    />
+                  </Suspense>
                 </div>
               </div>
             </article>
