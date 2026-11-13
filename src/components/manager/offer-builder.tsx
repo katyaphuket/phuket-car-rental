@@ -127,7 +127,14 @@ function defaultDate(offsetDays: number) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T10:00`;
 }
 
-export function OfferBuilder({ prefill, canSend = false }: { prefill?: LeadPrefill | null; canSend?: boolean }) {
+export function OfferBuilder({
+  prefill,
+  sendMessengers = [],
+}: {
+  prefill?: LeadPrefill | null;
+  // мессенджеры, для которых в amoCRM есть бот «Подборка …»
+  sendMessengers?: Messenger[];
+}) {
   const [start, setStart] = useState(() => prefill?.start ?? defaultDate(1));
   const [end, setEnd] = useState(() => prefill?.end ?? defaultDate(8));
   const [name, setName] = useState(prefill?.name ?? "");
@@ -289,6 +296,8 @@ export function OfferBuilder({ prefill, canSend = false }: { prefill?: LeadPrefi
     setTimeout(() => setTemplateSaved(false), 2000);
   }
 
+  const canSendHere = Boolean(prefill) && sendMessengers.includes(messenger);
+
   async function sendToClient() {
     if (!result || !prefill) return;
     setSendState("sending");
@@ -297,7 +306,7 @@ export function OfferBuilder({ prefill, canSend = false }: { prefill?: LeadPrefi
       const res = await fetch("/api/offer/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leadId: prefill.leadId, text: message }),
+        body: JSON.stringify({ leadId: prefill.leadId, text: message, messenger }),
       });
       if (res.status === 401) {
         window.location.reload();
@@ -564,8 +573,13 @@ export function OfferBuilder({ prefill, canSend = false }: { prefill?: LeadPrefi
                   </p>
                 )}
                 {sendError && <p className="text-xs text-red-600">{sendError}</p>}
+                {prefill && !canSendHere && (
+                  <p className="text-xs text-foreground-muted">
+                    Автоотправка в {MESSENGER_LABELS[messenger]} не настроена — скопируйте сообщение и отправьте в чат вручную.
+                  </p>
+                )}
                 <div className="flex flex-wrap items-center gap-2">
-                  {canSend && prefill && (
+                  {canSendHere && (
                     <button
                       type="button"
                       onClick={sendToClient}
@@ -579,7 +593,7 @@ export function OfferBuilder({ prefill, canSend = false }: { prefill?: LeadPrefi
                     type="button"
                     onClick={() => copy(message, "message")}
                     className={`cursor-pointer rounded-lg px-4 py-2 text-sm ${
-                      canSend && prefill
+                      canSendHere
                         ? "border border-border text-foreground hover:bg-surface-muted"
                         : "bg-accent font-medium text-accent-foreground hover:bg-accent-hover"
                     }`}

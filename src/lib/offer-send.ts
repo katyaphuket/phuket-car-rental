@@ -1,24 +1,53 @@
 import { amoFetch, isAmoConfigured } from "@/lib/amocrm";
 import { findLeadFieldIdByCode } from "@/lib/amo-offer-link";
+import type { Messenger } from "@/lib/offer";
 
-// Автоотправка подборки клиенту в чат amoCRM (WhatsApp / Telegram через Wazzup, Instagram).
+// Автоотправка подборки клиенту в чат amoCRM.
 // Сайт кладёт текст сообщения в поле сделки «Сообщение подборки» и запускает Salesbot,
 // у которого один шаг: «Отправить сообщение» с текстом {{lead.cf.<ID поля>}}.
-// Бот пишет в последний чат клиента — туда, где он уже переписывается.
+// Бот с «Каналы связи: Все» пишет во ВСЕ мессенджеры клиента, поэтому на каждый мессенджер
+// свой бот с одним каналом. Сайт находит их по названию.
 
 export const OFFER_MESSAGE_FIELD_CODE = "KC_OFFER_MESSAGE";
 export const OFFER_MESSAGE_FIELD_NAME = "Сообщение подборки";
 const MAX_MESSAGE_LENGTH = 3000;
 const AMO_TIMEOUT_MS = 15000;
+const BOTS_TTL_MS = 10 * 60 * 1000;
 
-// ID бота Salesbot «Отправка подборки» (виден в адресе страницы бота в amoCRM).
-function salesbotId() {
-  return Number(process.env.OFFER_SALESBOT_ID || OFFER_SALESBOT_ID) || null;
+export const BOT_NAME_BY_MESSENGER: Record<Messenger, string> = {
+  whatsapp: "Подборка WhatsApp",
+  telegram: "Подборка Telegram",
+  instagram: "Подборка Instagram",
+  max: "Подборка MAX",
+};
+
+let cachedBots: { ids: Partial<Record<Messenger, number>>; expiresAt: number } | null = null;
+
+function normalize(name: string) {
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
 }
-const OFFER_SALESBOT_ID = "3178"; // бот «Отправка подборки» в amoCRM
 
-export function isOfferSendConfigured() {
-  return isAmoConfigured() && salesbotId() !== null;
+// Боты-отправщики по мессенджерам: { telegram: 3201, whatsapp: 3202, … }
+export async function findOfferBots(): Promise<Partial<Record<Messenger, number>>> {
+  if (!isAmoConfigured()) return {};
+  if (cachedBots && cachedBots.expiresAt > Date.now()) return cachedBots.ids;
+  try {
+    const res = await amoFetch("bots?limit=250", AbortSignal.timeout(AMO_TIMEOUT_MS));
+    const body: { _embedded?: { items?: { id: number; name: string; settings?: { active?: boolean } }[] } } =
+      res.status === 204 ? {} : await res.json();
+    const bots = (body._embedded?.items ?? []).filter((bot) => bot.settings?.active !== false);
+    const ids: Partial<Record<Messenger, number>> = {};
+    for (const [messenger, name] of Object.entries(BOT_NAME_BY_MESSENGER) as [Messenger, string][]) {
+      const bot = bots.find((item) => normalize(item.name) === normalize(name));
+      if (bot) ids[messenger] = bot.id;
+    }
+    // Пока ботов нет, не запоминаем надолго — их как раз могут создавать.
+    cachedBots = { ids, expiresAt: Date.now() + (Object.keys(ids).length > 0 ? BOTS_TTL_MS : 30000) };
+    return ids;
+  } catch (error) {
+    console.error("Offer send: amoCRM bots list failed:", error);
+    return cachedBots?.ids ?? {};
+  }
 }
 
 export function validateOfferMessage(text: unknown) {
@@ -30,9 +59,7 @@ export function validateOfferMessage(text: unknown) {
   return null;
 }
 
-export async function sendOfferToChat(leadId: number, text: string) {
-  const botId = salesbotId();
-  if (!botId) throw new Error("Salesbot is not configured");
+export async function sendOfferToChat(leadId: number, text: string, botId: number) {
   const signal = AbortSignal.timeout(AMO_TIMEOUT_MS);
 
   const fieldId = await findLeadFieldIdByCode(OFFER_MESSAGE_FIELD_CODE, signal, OFFER_MESSAGE_FIELD_NAME);
