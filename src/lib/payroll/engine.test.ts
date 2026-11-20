@@ -1164,6 +1164,18 @@ describe("старые заявки и проверка запуска", () => {
   });
 });
 
+describe("запасной запуск", () => {
+  it("видит, что проверка сегодня уже прошла, и не дублирует сводку", async () => {
+    t.amoLeads.set(1, lead(1));
+    t.clock.day = "2026-12-05";
+    expect(await t.engine.ranToday()).toBe(false);
+    await t.evening("2026-12-05");
+    expect(await t.engine.ranToday()).toBe(true);
+    t.clock.day = "2026-12-06";
+    expect(await t.engine.ranToday()).toBe(false);
+  });
+});
+
 describe("лист месяца", () => {
   it("называется по месяцу и считает только этот месяц", () => {
     expect(monthTabTitle("2026-11")).toBe("Ноябрь 2026");

@@ -1,3 +1,6 @@
 {
-  "crons": [{ "path": "/api/payroll/daily", "schedule": "0 11 * * *" }]
+  "crons": [
+    { "path": "/api/payroll/daily", "schedule": "0 11 * * *" },
+    { "path": "/api/payroll/daily?backup=1", "schedule": "0 13 * * *" }
+  ]
 }

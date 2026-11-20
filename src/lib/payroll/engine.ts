@@ -424,6 +424,13 @@ export function createEngine(deps: EngineDeps) {
     return JSON.stringify(deal) !== before;
   }
 
+  // A question asked today means the evening check already went through, so a backup run
+  // that comes later must not send the same lists again.
+  async function ranToday() {
+    const day = today();
+    return (await store.deals()).some((d) => d.lastAsked === day);
+  }
+
   async function dailyRun() {
     const day = today();
     const people = await store.people();
@@ -1127,5 +1134,5 @@ export function createEngine(deps: EngineDeps) {
     else if (update.message) await onMessage(update.message);
   }
 
-  return { onUpdate, dailyRun, importExisting, startReview };
+  return { onUpdate, dailyRun, ranToday, importExisting, startReview };
 }
