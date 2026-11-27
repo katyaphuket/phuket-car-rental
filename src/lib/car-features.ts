@@ -20,10 +20,21 @@ export type CarFeatures = {
   engine: string; // например "1.2 бензин" или "2.0 турбо дизель"
   seats?: number; // если не 5 — указываем явно
   highlight?: string; // особая фишка для бейджа на фото: "Люк", "Гибрид", "360°" и т.д.
+  color?: string; // цвет — чтобы различать одинаковые машины; уже добавлен в displayName («MG3 — красная»)
 };
 
 // Описания машин — в knowledge/cars.json, переводы на английский — в knowledge/cars-en.json
-export const CAR_FEATURES = cars.cars as unknown as Record<number, CarFeatures>;
+// Цвет приписываем к названию: «MG3 — красная», по-английски «MG3 — red».
+function nameWithColor(name: string, color?: string) {
+  return color ? `${name} — ${color}` : name;
+}
+
+export const CAR_FEATURES = Object.fromEntries(
+  Object.entries(cars.cars as unknown as Record<string, CarFeatures>).map(([id, car]) => [
+    id,
+    { ...car, displayName: nameWithColor(car.displayName, car.color) },
+  ])
+) as Record<number, CarFeatures>;
 
 // Фолбек если машина не найдена в конфиге
 export const DEFAULT_FEATURES = cars.default as Omit<CarFeatures, "displayName">;
@@ -43,8 +54,10 @@ export function parseDisplayName(rawName: string): string {
   return withoutColor.replace(/\s+/g, " ").trim();
 }
 
-export function getDisplayName(id: number, rawName: string): string {
-  return CAR_FEATURES[id]?.displayName ?? parseDisplayName(rawName);
+export function getDisplayName(id: number, rawName: string, locale: Locale = "ru"): string {
+  const car = CAR_FEATURES[id];
+  if (!car) return parseDisplayName(rawName);
+  return locale === "en" ? translateDisplayName(car) : car.displayName;
 }
 
 export function getCarFeatures(id: number, rawName = ""): CarFeatures {
@@ -59,6 +72,13 @@ const ENGINE_EN: Record<string, string> = carsEn.engine;
 const FEATURE_LABEL_EN: Record<string, string> = carsEn.featureLabel;
 const HIGHLIGHT_EN: Record<string, string> = carsEn.highlight;
 const DESCRIPTION_EN: Record<string, string> = carsEn.description;
+const COLOR_EN: Record<string, string> = carsEn.color;
+
+function translateDisplayName(features: CarFeatures) {
+  if (!features.color) return features.displayName;
+  const base = features.displayName.slice(0, -` — ${features.color}`.length);
+  return nameWithColor(base, COLOR_EN[features.color] ?? features.color);
+}
 
 function translateOr<T extends string>(map: Record<string, string>, value: T): string {
   return map[value] ?? value;
@@ -77,6 +97,7 @@ export function translateCarFeatures(features: CarFeatures, locale: Locale): Car
 
   return {
     ...features,
+    displayName: translateDisplayName(features),
     carClass: (CAR_CLASS_EN[features.carClass] ?? features.carClass) as CarClass,
     description: translateOr(DESCRIPTION_EN, features.description),
     bodyType: translateOr(BODY_TYPE_EN, features.bodyType),

@@ -20,7 +20,7 @@ type CarCardProps = {
 
 export function CarCard({ car, delivery, onPickupOnly, onOpen }: CarCardProps) {
   const { t, locale } = useLocale();
-  const displayName = getDisplayName(Number(car.id), car.name);
+  const displayName = getDisplayName(Number(car.id), car.name, locale);
   const { carClass, year, seats } = getCarFeatures(Number(car.id), car.name);
   const carClassLabel = locale === "en" ? CAR_CLASS_EN[carClass] : carClass;
   const isLowPrice = LOW_PRICE_CAR_IDS.has(Number(car.id));

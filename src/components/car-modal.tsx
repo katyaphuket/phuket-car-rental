@@ -152,7 +152,7 @@ export function CarModal({
 
   const features = translateCarFeatures(getCarFeatures(Number(car.id), car.name), locale);
   const transmissionLabel = translateTransmission(car.transmission, locale, t.cars.automatic);
-  const displayName = getDisplayName(Number(car.id), car.name);
+  const displayName = getDisplayName(Number(car.id), car.name, locale);
   const totalKm = days * 120;
   const rentTotal = car.pricePerPeriodThb;
   const washFee = washSelected ? WASH_FEE : 0;

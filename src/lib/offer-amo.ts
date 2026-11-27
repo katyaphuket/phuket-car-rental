@@ -42,7 +42,19 @@ function money(value: number) {
   return `${value.toLocaleString("ru-RU")} ฿`;
 }
 
-function carLine(car: OfferCar, offer: Pick<Offer, "days" | "extraHours">) {
+// Название для менеджеров: одинаковые машины (MG5 Sunroof и т.п.) различаем по номеру из RentProg.
+function carLabel(car: OfferCar, number?: string) {
+  const name = getDisplayName(car.id, car.name ?? "");
+  return number ? `${name} · #${number}` : name;
+}
+
+function fetchCarNumber(offer: Offer, car: OfferCar) {
+  return fetchCarData(car.id, offer.start, offer.end, offer.days)
+    .then((data) => data.number?.trim() || undefined)
+    .catch(() => undefined);
+}
+
+function carLine(car: OfferCar, offer: Pick<Offer, "days" | "extraHours">, number?: string) {
   const custom = car.listPrice ? ` (своя цена, в RentProg ${money(car.listPrice)}/день)` : "";
   const charge = offerCharge(offer, car);
   const period =
@@ -51,7 +63,7 @@ function carLine(car: OfferCar, offer: Pick<Offer, "days" | "extraHours">) {
       : charge.days !== offer.days
         ? `, ${charge.days} дн. (часы дороже суток)`
         : "";
-  return `• ${getDisplayName(car.id, car.name ?? "")} — ${money(car.pricePerDay)}/день${period}, итого ${money(charge.total)}${custom}`;
+  return `• ${carLabel(car, number)} — ${money(car.pricePerDay)}/день${period}, итого ${money(charge.total)}${custom}`;
 }
 
 function periodText(offer: Offer) {
@@ -121,13 +133,14 @@ export function chosenCarFields(offer: Offer, car: OfferCar): CustomField[] {
 // Менеджер создал подборку из сделки.
 export async function onOfferCreated(offer: Offer, url: string) {
   if (!offer.leadId || !isAmoConfigured()) return;
+  const numbers = await Promise.all(offer.cars.map((car) => fetchCarNumber(offer, car)));
   const signal = AbortSignal.timeout(AMO_TIMEOUT_MS);
   await addNote(
     offer.leadId,
     [
       "📋 ОТПРАВЛЕНА ПОДБОРКА",
       `Даты: ${formatRange(offer.start, offer.end, "ru")} (${offer.start} → ${offer.end}), ${periodText(offer)}`,
-      ...offer.cars.map((car) => carLine(car, offer)),
+      ...offer.cars.map((car, index) => carLine(car, offer, numbers[index])),
       "",
       url,
     ].join("\n"),
@@ -145,7 +158,9 @@ export async function onOfferViewed(offer: Offer) {
 
 // Клиент нажал «Хочу эту машину».
 export async function onCarChosen(offer: Offer, car: OfferCar) {
-  const carName = getDisplayName(car.id, car.name ?? "");
+  // Номер из RentProg: нужен и в названии (одинаковые машины), и для поля «Авто».
+  const carNumber = await fetchCarNumber(offer, car);
+  const carName = carLabel(car, carNumber);
   const range = formatRange(offer.start, offer.end, "ru");
   const tasks: Promise<unknown>[] = [];
 
@@ -159,16 +174,13 @@ export async function onCarChosen(offer: Offer, car: OfferCar) {
           [
             "✅ КЛИЕНТ ВЫБРАЛ МАШИНУ В ПОДБОРКЕ",
             `Даты: ${range} (${offer.start} → ${offer.end}), ${periodText(offer)}`,
-            carLine(car, offer),
+            carLine(car, offer, carNumber),
             `Депозит: ${money(car.deposit)}`,
           ].join("\n"),
           signal
         );
 
         // Машину — в поле «Авто», если найдётся подходящий вариант (по номеру из RentProg).
-        const carNumber = await fetchCarData(car.id, offer.start, offer.end, offer.days)
-          .then((data) => data.number?.trim() || undefined)
-          .catch(() => undefined);
         const option = findCarOption(await getCarOptions(signal), { carId: String(car.id), carNumber, carName });
         const fields = chosenCarFields(offer, car);
         if (option) fields.push({ field_id: FIELD.car, values: [{ value: option }] });
